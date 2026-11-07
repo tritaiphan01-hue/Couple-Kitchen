@@ -81,3 +81,13 @@ test('every ingredient and Midnight Snack station has a drawn icon', () => {
   assert.deepStrictEqual(missing, []);
   assert.ok(I.svg('cat'));
 });
+
+test('soundtrack loops are present and phone-friendly in size', () => {
+  for (const mood of ['chill', 'rush', 'sneak']) {
+    const file = path.join(__dirname, '../public/music', mood + '.mp3');
+    assert.ok(fs.existsSync(file), mood);
+    const kb = fs.statSync(file).size / 1024;
+    assert.ok(kb > 100 && kb < 1500, `${mood}: ${kb.toFixed(0)} KB`);
+    assert.strictEqual(fs.readFileSync(file).subarray(0, 3).toString('latin1') === 'ID3' || fs.readFileSync(file)[0] === 0xff, true);
+  }
+});
