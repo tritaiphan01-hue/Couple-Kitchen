@@ -33,16 +33,12 @@ test('two players can create, join, play and reconnect', async t => {
 
   assert.strictEqual((await emit(a, 'mode:start', { mode: 'sneak' })).error, 'mode_soon');
 
-  // Switch to the Vietnamese pantry; both players see it.
-  const packed = nextState(b, s => s.room.pack === 'vietnam');
-  a.emit('room:pack', { pack: 'vietnam' });
-  await packed;
   const started = nextState(b, s => s.game);
   await emit(a, 'mode:start', { mode: 'relay' });
   const sb = await started;
   assert.strictEqual(sb.game.myCard.length, 3);
   assert.strictEqual(sb.game.cards, undefined);
-  assert.strictEqual(sb.game.pack, 'vietnam');
+  assert.strictEqual(sb.game.market.length, 18);
 
   const players = [a, b];
   let last;
@@ -56,7 +52,6 @@ test('two players can create, join, play and reconnect', async t => {
   }
   assert.strictEqual(last.game.phase, 'results');
   assert.deepStrictEqual(last.game.dish.chefs, [0, 1]);   // nobody added ingredients → shared credit
-  assert.strictEqual(last.game.dish.pack, 'vietnam');
   assert.strictEqual(last.room.stats.rounds, 1);
 
   // Refresh / reconnect: a fresh socket with the same playerId gets the seat back.

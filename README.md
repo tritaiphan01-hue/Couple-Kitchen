@@ -11,7 +11,7 @@ A cozy co-op cooking game for two, played online from your phones.
 
 ## Languages & pantries
 - **English / Tiếng Việt** — tap the flag on the home screen or in the lobby. It defaults to Vietnamese when the phone's language is Vietnamese. Each partner can play in their own language in the same game.
-- **🇻🇳 Món Việt / 🍝 Western pantry** — pick in the lobby (either partner can switch; applies to the next dish). The Vietnamese pantry has nước mắm, rau thơm, sả, ớt, rau muống, bún, cơm, tôm, cá, thịt heo, thịt bò… and dishes like Phở, Canh chua, Lẩu, Cháo, Gỏi, Món kho.
+- **One combined kitchen**: Vietnamese and Western ingredients and dishes live together. Recipe Relay deals a random "today's market" of 18 ingredients each round (from 26), so every round is different; Split Kitchen has an 18-item pantry and every level mixes dishes like bánh mì, phở bò and cơm tấm with burgers, fries and pasta.
 - All text lives in `public/i18n.js`; the server only sends ids/tags, so adding another language means adding one more block there.
 
 ## Run it locally

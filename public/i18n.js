@@ -27,9 +27,6 @@
       'lobby.hintAlone': 'Send your partner the code to start cooking 💌',
       'lobby.hintAway': '{name} stepped out. You can still start a dish.',
       'lobby.hintReady': 'Both chefs ready! Pick a mode 👇',
-      'lobby.packTitle': 'Pantry',
-      'lobby.pack.western': '🍝 Western',
-      'lobby.pack.vietnam': '🇻🇳 Vietnamese',
       'lobby.modeTitle': "Pick tonight's mode",
       'lobby.leaveConfirm': 'Leave this kitchen? Your partner will need a new code.',
       'lobby.recapTonight': 'Tonight:',
@@ -180,9 +177,6 @@
       'lobby.hintAlone': 'Gửi mã cho người ấy để bắt đầu nấu nhé 💌',
       'lobby.hintAway': '{name} vừa ra ngoài. Bạn vẫn có thể bắt đầu món mới.',
       'lobby.hintReady': 'Hai đầu bếp đã sẵn sàng! Chọn chế độ nào 👇',
-      'lobby.packTitle': 'Tủ bếp',
-      'lobby.pack.western': '🍝 Món Tây',
-      'lobby.pack.vietnam': '🇻🇳 Món Việt',
       'lobby.modeTitle': 'Tối nay chơi gì nè',
       'lobby.leaveConfirm': 'Rời bếp này? Người ấy sẽ cần mã mới đó.',
       'lobby.recapTonight': 'Tối nay:',
@@ -340,7 +334,7 @@
   };
 
   let lang = 'en';
-  let catalog = { packs: {}, actions: {} };
+  let catalog = { ingredients: {}, dishTypes: {}, actions: {}, rush: { ingredients: {}, dishes: {} } };
   const allIngredients = {};
 
   const fill = (s, vars = {}) => String(s).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
@@ -355,7 +349,7 @@
 
   function setCatalog(c) {
     catalog = c;
-    for (const pack of Object.values(c.packs || {})) Object.assign(allIngredients, pack.ingredients);
+    Object.assign(allIngredients, c.ingredients || {});
   }
 
   const ingName = id => (allIngredients[id] ? allIngredients[id].name[lang] : id);
@@ -406,15 +400,14 @@
     return '???';
   }
 
-  function dishTypeName(packId, key) {
-    const pack = catalog.packs[packId];
-    return pack && pack.dishTypes[key] ? pack.dishTypes[key][lang] : key;
+  function dishTypeName(key) {
+    return catalog.dishTypes[key] ? catalog.dishTypes[key][lang] : key;
   }
 
   // EN: "Tri & Mai's Spicy Shrimp Phở"   VI: "Phở tôm cay của Tri & Mai"
   function dishName(dish, names) {
     const chefs = dish.chefs.map(i => names[i]).join(' & ');
-    const type = dishTypeName(dish.pack, dish.dishType);
+    const type = dishTypeName(dish.dishType);
     const flavor = FLAVOR_WORDS[lang][dish.flavor || 'none'];
     const star = dish.star ? ingName(dish.star) : '';
     if (lang === 'vi') return [type, star && lower(star), flavor, 'của', chefs].filter(Boolean).join(' ');
@@ -441,8 +434,8 @@
   }
 
   // Split Kitchen names (separate pantry from Recipe Relay).
-  const rushIng = (pack, id) => { const p = catalog.rush && catalog.rush[pack]; return p && p.ingredients[id] ? p.ingredients[id] : { emoji: '❓', name: { en: id, vi: id } }; };
-  const rushDish = (pack, id) => { const p = catalog.rush && catalog.rush[pack]; return p && p.dishes[id] ? p.dishes[id] : { emoji: '❓', name: { en: id, vi: id }, comps: [] }; };
+  const rushIng = id => catalog.rush.ingredients[id] || { emoji: '❓', name: { en: id, vi: id } };
+  const rushDish = id => catalog.rush.dishes[id] || { emoji: '❓', name: { en: id, vi: id }, comps: [] };
 
   window.I18N = {
     t, setLang, detectLang, setCatalog, clueText, dishName, dishTypeName, rushIng, rushDish,

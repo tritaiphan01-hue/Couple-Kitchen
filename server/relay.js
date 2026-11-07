@@ -4,81 +4,63 @@
 // one ingredient or doing one action to a shared pot. At the end the pot is
 // judged against every clue.
 //
+// One combined Western + Vietnamese pantry; each round deals a random "market".
 // Everything sent to clients is language-neutral data (ids, tags, numbers).
 // Each phone turns it into English or Vietnamese text itself, so the two
 // partners can even play in different languages.
 
 const ing = (emoji, en, vi, tags) => ({ emoji, name: { en, vi }, tags });
 
-const PACKS = {
-  western: {
-    emoji: '🍝',
-    ingredients: {
-      carrot:   ing('🥕', 'Carrot',   'Cà rốt',     ['veg', 'orange', 'sweet']),
-      garlic:   ing('🧄', 'Garlic',   'Tỏi',        ['veg', 'white', 'savory']),
-      onion:    ing('🧅', 'Onion',    'Hành tây',   ['veg', 'white', 'savory']),
-      chili:    ing('🌶️', 'Chili',    'Ớt',         ['veg', 'red', 'spicy']),
-      tomato:   ing('🍅', 'Tomato',   'Cà chua',    ['veg', 'red', 'sour']),
-      mushroom: ing('🍄', 'Mushroom', 'Nấm',        ['veg', 'brown', 'savory']),
-      potato:   ing('🥔', 'Potato',   'Khoai tây',  ['veg', 'brown', 'starchy']),
-      corn:     ing('🌽', 'Corn',     'Bắp',        ['veg', 'yellow', 'sweet']),
-      lemon:    ing('🍋', 'Lemon',    'Chanh vàng', ['fruit', 'yellow', 'sour']),
-      cheese:   ing('🧀', 'Cheese',   'Phô mai',    ['dairy', 'yellow', 'savory']),
-      milk:     ing('🥛', 'Milk',     'Sữa',        ['dairy', 'white', 'sweet']),
-      egg:      ing('🥚', 'Egg',      'Trứng',      ['protein', 'white', 'savory']),
-      chicken:  ing('🍗', 'Chicken',  'Gà',         ['protein', 'meat', 'brown', 'savory']),
-      shrimp:   ing('🦐', 'Shrimp',   'Tôm',        ['protein', 'seafood', 'orange', 'savory']),
-      rice:     ing('🍚', 'Rice',     'Cơm',        ['grain', 'white', 'starchy']),
-      noodles:  ing('🍝', 'Pasta',    'Mì Ý',       ['grain', 'yellow', 'starchy']),
-      honey:    ing('🍯', 'Honey',    'Mật ong',    ['sweet', 'yellow']),
-      herbs:    ing('🌿', 'Herbs',    'Rau thơm',   ['herb', 'green', 'fresh']),
-    },
-    dishTypes: {
-      soup:    { en: 'Soup',     vi: 'Súp' },
-      stew:    { en: 'Stew',     vi: 'Món hầm' },
-      stirfry: { en: 'Stir-fry', vi: 'Món xào' },
-      curry:   { en: 'Curry',    vi: 'Cà ri' },
-      bowl:    { en: 'Bowl',     vi: 'Tô' },
-      risotto: { en: 'Risotto',  vi: 'Cơm Ý' },
-      pasta:   { en: 'Pasta',    vi: 'Mì Ý' },
-      pie:     { en: 'Pot Pie',  vi: 'Bánh nướng' },
-    },
-  },
-  vietnam: {
-    emoji: '🇻🇳',
-    ingredients: {
-      nuoc_mam:  ing('🧴', 'Fish sauce',    'Nước mắm',   ['seafood', 'brown', 'savory']),
-      rau_thom:  ing('🌿', 'Fresh herbs',   'Rau thơm',   ['herb', 'green', 'fresh']),
-      sa:        ing('🌾', 'Lemongrass',    'Sả',         ['herb', 'green', 'fresh']),
-      ot:        ing('🌶️', 'Chili',         'Ớt',         ['veg', 'red', 'spicy']),
-      toi:       ing('🧄', 'Garlic',        'Tỏi',        ['veg', 'white', 'savory']),
-      hanh:      ing('🧅', 'Shallot',       'Hành',       ['veg', 'white', 'savory']),
-      ca_chua:   ing('🍅', 'Tomato',        'Cà chua',    ['veg', 'red', 'sour']),
-      thom:      ing('🍍', 'Pineapple',     'Thơm',       ['fruit', 'yellow', 'sweet', 'sour']),
-      chanh:     ing('🍋', 'Lime',          'Chanh',      ['fruit', 'yellow', 'sour']),
-      nam:       ing('🍄', 'Mushroom',      'Nấm',        ['veg', 'brown', 'savory']),
-      rau_muong: ing('🥬', 'Water spinach', 'Rau muống',  ['veg', 'green', 'fresh']),
-      trung:     ing('🥚', 'Egg',           'Trứng',      ['protein', 'white', 'savory']),
-      tom:       ing('🦐', 'Shrimp',        'Tôm',        ['protein', 'seafood', 'orange', 'savory']),
-      ca:        ing('🐟', 'Fish',          'Cá',         ['protein', 'seafood', 'white', 'savory']),
-      thit_heo:  ing('🥓', 'Pork',          'Thịt heo',   ['protein', 'meat', 'red', 'savory']),
-      thit_bo:   ing('🥩', 'Beef',          'Thịt bò',    ['protein', 'meat', 'red', 'savory']),
-      bun:       ing('🍜', 'Vermicelli',    'Bún',        ['grain', 'white', 'starchy']),
-      com:       ing('🍚', 'Rice',          'Cơm',        ['grain', 'white', 'starchy']),
-    },
-    dishTypes: {
-      pho:      { en: 'Phở',       vi: 'Phở' },
-      canhchua: { en: 'Canh Chua', vi: 'Canh chua' },
-      bun:      { en: 'Bún',       vi: 'Bún' },
-      comchien: { en: 'Fried Rice', vi: 'Cơm chiên' },
-      lau:      { en: 'Lẩu',       vi: 'Lẩu' },
-      chao:     { en: 'Cháo',      vi: 'Cháo' },
-      goi:      { en: 'Gỏi',       vi: 'Gỏi' },
-      kho:      { en: 'Kho',       vi: 'Món kho' },
-    },
-  },
+// One combined pantry: Western and Vietnamese ingredients together.
+const INGREDIENTS = {
+  carrot:    ing('🥕', 'Carrot',        'Cà rốt',     ['veg', 'orange', 'sweet']),
+  garlic:    ing('🧄', 'Garlic',        'Tỏi',        ['veg', 'white', 'savory']),
+  onion:     ing('🧅', 'Onion',         'Hành',       ['veg', 'white', 'savory']),
+  chili:     ing('🌶️', 'Chili',         'Ớt',         ['veg', 'red', 'spicy']),
+  tomato:    ing('🍅', 'Tomato',        'Cà chua',    ['veg', 'red', 'sour']),
+  mushroom:  ing('🍄', 'Mushroom',      'Nấm',        ['veg', 'brown', 'savory']),
+  potato:    ing('🥔', 'Potato',        'Khoai tây',  ['veg', 'brown', 'starchy']),
+  corn:      ing('🌽', 'Corn',          'Bắp',        ['veg', 'yellow', 'sweet']),
+  rau_muong: ing('🥬', 'Water spinach', 'Rau muống',  ['veg', 'green', 'fresh']),
+  lemon:     ing('🍋', 'Lime',          'Chanh',      ['fruit', 'yellow', 'sour']),
+  thom:      ing('🍍', 'Pineapple',     'Thơm',       ['fruit', 'yellow', 'sweet', 'sour']),
+  cheese:    ing('🧀', 'Cheese',        'Phô mai',    ['dairy', 'yellow', 'savory']),
+  milk:      ing('🥛', 'Milk',          'Sữa',        ['dairy', 'white', 'sweet']),
+  egg:       ing('🥚', 'Egg',           'Trứng',      ['protein', 'white', 'savory']),
+  chicken:   ing('🍗', 'Chicken',       'Gà',         ['protein', 'meat', 'brown', 'savory']),
+  thit_heo:  ing('🥓', 'Pork',          'Thịt heo',   ['protein', 'meat', 'red', 'savory']),
+  thit_bo:   ing('🥩', 'Beef',          'Thịt bò',    ['protein', 'meat', 'red', 'savory']),
+  shrimp:    ing('🦐', 'Shrimp',        'Tôm',        ['protein', 'seafood', 'orange', 'savory']),
+  ca:        ing('🐟', 'Fish',          'Cá',         ['protein', 'seafood', 'white', 'savory']),
+  nuoc_mam:  ing('🧴', 'Fish sauce',    'Nước mắm',   ['seafood', 'brown', 'savory']),
+  rice:      ing('🍚', 'Rice',          'Cơm',        ['grain', 'white', 'starchy']),
+  noodles:   ing('🍝', 'Pasta',         'Mì Ý',       ['grain', 'yellow', 'starchy']),
+  bun:       ing('🍜', 'Vermicelli',    'Bún',        ['grain', 'white', 'starchy']),
+  honey:     ing('🍯', 'Honey',         'Mật ong',    ['sweet', 'yellow']),
+  herbs:     ing('🌿', 'Herbs',         'Rau thơm',   ['herb', 'green', 'fresh']),
+  sa:        ing('🌾', 'Lemongrass',    'Sả',         ['herb', 'green', 'fresh']),
 };
-const DEFAULT_PACK = 'western';
+
+const DISH_TYPES = {
+  soup:     { en: 'Soup',       vi: 'Súp' },
+  stew:     { en: 'Stew',       vi: 'Món hầm' },
+  stirfry:  { en: 'Stir-fry',   vi: 'Món xào' },
+  curry:    { en: 'Curry',      vi: 'Cà ri' },
+  risotto:  { en: 'Risotto',    vi: 'Cơm Ý' },
+  pie:      { en: 'Pot Pie',    vi: 'Bánh nướng' },
+  pho:      { en: 'Phở',        vi: 'Phở' },
+  canhchua: { en: 'Canh Chua',  vi: 'Canh chua' },
+  bun:      { en: 'Bún',        vi: 'Bún' },
+  comchien: { en: 'Fried Rice', vi: 'Cơm chiên' },
+  lau:      { en: 'Lẩu',        vi: 'Lẩu' },
+  chao:     { en: 'Cháo',       vi: 'Cháo' },
+  goi:      { en: 'Gỏi',        vi: 'Gỏi' },
+  kho:      { en: 'Kho',        vi: 'Món kho' },
+};
+
+// Each round only some ingredients are "at the market", so the pantry fits on a phone
+// and every round feels a little different.
+const MARKET_SIZE = 18;
 
 const ACTIONS = {
   stir: { emoji: '🥄', name: { en: 'Stir', vi: 'Khuấy' } },
@@ -100,20 +82,18 @@ function shuffle(arr, rand = Math.random) {
   return a;
 }
 
-function packOf(id) { return PACKS[id] || PACKS[DEFAULT_PACK]; }
-
-function tagsOf(ingredientIds, pack) {
+function tagsOf(ingredientIds) {
   const counts = {};
-  for (const id of ingredientIds) for (const t of pack.ingredients[id].tags) counts[t] = (counts[t] || 0) + 1;
+  for (const id of ingredientIds) for (const t of INGREDIENTS[id].tags) counts[t] = (counts[t] || 0) + 1;
   return counts;
 }
 
 // ---- Clue checking -------------------------------------------------------
 
-function checkClue(clue, pot, pack = PACKS[DEFAULT_PACK]) {
+function checkClue(clue, pot) {
   const ings = pot.filter(s => s.kind === 'ingredient').map(s => s.id);
   const acts = pot.filter(s => s.kind === 'action').map(s => s.id);
-  const tags = tagsOf(ings, pack);
+  const tags = tagsOf(ings);
   const last = pot[pot.length - 1];
   switch (clue.type) {
     case 'hasTag':    return (tags[clue.tag] || 0) >= 1;
@@ -133,10 +113,9 @@ function checkClue(clue, pot, pack = PACKS[DEFAULT_PACK]) {
 // ---- Recipe generation ---------------------------------------------------
 
 // Build every clue that is TRUE for the target dish, then pick a varied set.
-function candidateClues(pack, targetIngs, targetActs, lastAction, rand) {
-  const tags = tagsOf(targetIngs, pack);
-  const packIds = Object.keys(pack.ingredients);
-  const packTags = tagsOf(packIds, pack);
+function candidateClues(market, targetIngs, targetActs, lastAction, rand) {
+  const tags = tagsOf(targetIngs);
+  const marketTags = tagsOf(market);
   const out = [];
 
   for (const [tag, n] of Object.entries(tags)) {
@@ -145,10 +124,10 @@ function candidateClues(pack, targetIngs, targetActs, lastAction, rand) {
   }
   // Only forbid things the pantry actually contains, otherwise the clue is free.
   for (const tag of NEGATABLE_TAGS) {
-    if (!tags[tag] && packTags[tag]) out.push({ type: 'noTag', tag, w: 3 });
+    if (!tags[tag] && marketTags[tag]) out.push({ type: 'noTag', tag, w: 3 });
   }
   for (const id of targetIngs) out.push({ type: 'hasIng', id, w: 2 });
-  for (const id of shuffle(packIds.filter(i => !targetIngs.includes(i)), rand).slice(0, 3)) {
+  for (const id of shuffle(market.filter(i => !targetIngs.includes(i)), rand).slice(0, 3)) {
     out.push({ type: 'noIng', id, w: 1 });
   }
   for (const id of Object.keys(ACTIONS)) {
@@ -169,9 +148,8 @@ function clueKey(c) {
   return c.type;
 }
 
-function generateRecipe(packId = DEFAULT_PACK, rand = Math.random) {
-  const pack = packOf(packId);
-  const ingIds = Object.keys(pack.ingredients);
+function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random) {
+  const ingIds = market;
   const nIngs = 4 + Math.floor(rand() * 2);          // 4–5 ingredients
   const targetIngs = shuffle(ingIds, rand).slice(0, nIngs);
   const nActs = TOTAL_TURNS - nIngs >= 3 ? 2 : 1;     // fits in 8 turns with room to spare
@@ -179,7 +157,7 @@ function generateRecipe(packId = DEFAULT_PACK, rand = Math.random) {
   const lastAction = targetActs[targetActs.length - 1];
 
   // Weighted shuffle: higher-weight clues tend to come first, with some randomness.
-  const pool = candidateClues(pack, targetIngs, targetActs, lastAction, rand)
+  const pool = candidateClues(market, targetIngs, targetActs, lastAction, rand)
     .map(c => ({ c, score: c.w + rand() * 3 }))
     .sort((a, b) => b.score - a.score)
     .map(x => x.c);
@@ -193,7 +171,7 @@ function generateRecipe(packId = DEFAULT_PACK, rand = Math.random) {
     chosen.push(c);
   }
   const clues = shuffle(chosen, rand).map(({ w, ...c }) => c);
-  const dishKeys = Object.keys(pack.dishTypes);
+  const dishKeys = Object.keys(DISH_TYPES);
   return {
     dishType: dishKeys[Math.floor(rand() * dishKeys.length)],
     target: { ingredients: targetIngs, actions: targetActs },
@@ -203,18 +181,21 @@ function generateRecipe(packId = DEFAULT_PACK, rand = Math.random) {
 
 // ---- Game state ----------------------------------------------------------
 
-function createRelayGame(round = 1, packId = DEFAULT_PACK, rand = Math.random) {
-  const pack = PACKS[packId] ? packId : DEFAULT_PACK;
+function createRelayGame(round = 1, rand = Math.random) {
+  // Today's market, in a stable order (by catalogue position) so the pantry grid stays tidy.
+  const all = Object.keys(INGREDIENTS);
+  const pick = new Set(shuffle(all, rand).slice(0, MARKET_SIZE));
+  const market = all.filter(id => pick.has(id));
   return {
     mode: 'relay',
-    pack,
+    market,
     round,
     phase: 'playing',            // 'playing' | 'results'
     turn: 0,                     // 0..TOTAL_TURNS-1
     totalTurns: TOTAL_TURNS,
     starter: (round - 1) % 2,    // alternate who goes first each round
     pot: [],                     // [{kind, id, by}]
-    recipe: generateRecipe(pack, rand),
+    recipe: generateRecipe(market, rand),
     result: null,
   };
 }
@@ -229,7 +210,7 @@ function applyMove(game, seat, move) {
   if (currentPlayer(game) !== seat) return 'not_your_turn';
   if (!move || (move.kind !== 'ingredient' && move.kind !== 'action')) return 'invalid_move';
   if (move.kind === 'ingredient') {
-    if (!Object.prototype.hasOwnProperty.call(packOf(game.pack).ingredients, move.id)) return 'unknown_ingredient';
+    if (!game.market.includes(move.id)) return 'unknown_ingredient';
     if (game.pot.some(s => s.kind === 'ingredient' && s.id === move.id)) return 'already_in_pot';
   } else if (!Object.prototype.hasOwnProperty.call(ACTIONS, move.id)) {
     return 'unknown_action';
@@ -241,8 +222,7 @@ function applyMove(game, seat, move) {
 }
 
 function finishRound(game) {
-  const pack = packOf(game.pack);
-  const checks = game.recipe.cards.map(card => card.map(c => checkClue(c, game.pot, pack)));
+  const checks = game.recipe.cards.map(card => card.map(c => checkClue(c, game.pot)));
   const met = checks.flat().filter(Boolean).length;
   const total = checks.flat().length;
   const stars = met === total ? 3 : met >= total - 1 ? 2 : met >= total - 3 ? 1 : 0;
@@ -252,9 +232,8 @@ function finishRound(game) {
 
 // The pieces of the dish's name; each client words it in its own language.
 function dishInfo(game) {
-  const pack = packOf(game.pack);
   const ings = game.pot.filter(s => s.kind === 'ingredient').map(s => s.id);
-  const tags = tagsOf(ings, pack);
+  const tags = tagsOf(ings);
   const flavor = ['spicy', 'sweet', 'sour', 'savory'].sort((a, b) => (tags[b] || 0) - (tags[a] || 0))[0];
   // Credit whoever added the most ingredients (ties → both).
   const by = [0, 0];
@@ -264,7 +243,6 @@ function dishInfo(game) {
     flavor: tags[flavor] ? flavor : null,
     star: ings[0] || null,
     dishType: game.recipe.dishType,
-    pack: game.pack,
   };
 }
 
@@ -272,7 +250,7 @@ function dishInfo(game) {
 function viewFor(game, seat) {
   const v = {
     mode: 'relay',
-    pack: game.pack,
+    market: game.market,
     round: game.round,
     phase: game.phase,
     turn: game.turn,
@@ -292,6 +270,6 @@ function viewFor(game, seat) {
 }
 
 module.exports = {
-  PACKS, ACTIONS, TOTAL_TURNS, DEFAULT_PACK,
+  INGREDIENTS, DISH_TYPES, ACTIONS, TOTAL_TURNS, MARKET_SIZE,
   createRelayGame, applyMove, viewFor, checkClue, generateRecipe, currentPlayer, dishInfo,
 };

@@ -182,11 +182,6 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .dot.off { background: #C9B6A4; }
 .lobby-hint { text-align: center; color: var(--fg-soft); margin: 4px 0 14px; min-height: 1.4em; }
 
-.pack-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; }
-.pack-label { font-family: var(--font-head); font-size: 1.1rem; font-weight: 600; }
-.pack-toggle { display: flex; background: var(--surface-2); border: 3px solid var(--cocoa); border-radius: 99px; padding: 3px; gap: 2px; }
-.pack-btn { border: 0; background: transparent; border-radius: 99px; padding: 7px 12px; font-size: .9rem; font-weight: 800; white-space: nowrap; transition: background .2s ease; }
-.pack-btn[aria-checked="true"] { background: var(--butter); box-shadow: 0 2px 0 var(--cocoa); }
 .section-title { font-size: 1.2rem; margin: 8px 0 10px; }
 .modes { display: flex; flex-direction: column; gap: 12px; }
 .mode-card {
@@ -390,7 +385,7 @@ button.slot, .trash, .clear-plate { touch-action: manipulation; }
 
 /* Kitchen */
 .rush-body { display: flex; flex-direction: column; flex: 1; }
-.kit { display: flex; flex-direction: column; gap: 6px; flex: 1; }
+.kit { display: flex; flex-direction: column; gap: 5px; flex: 1; }
 .kit-label { font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--fg-soft); margin-top: 2px; }
 button.slot {
   border: 2px solid var(--line); background: var(--surface); border-radius: 14px; padding: 0;
@@ -403,18 +398,18 @@ button.slot:active { transform: scale(.92); }
 .muted { color: var(--fg-soft); font-size: .8rem; font-weight: 700; }
 
 .rush-pantry { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
-.pantry-item { height: 58px; display: flex !important; flex-direction: column; gap: 1px; }
-.pantry-item .e { font-size: 1.55rem; line-height: 1.1; }
+.pantry-item { height: 52px; display: flex !important; flex-direction: column; gap: 1px; }
+.pantry-item .e { font-size: 1.4rem; line-height: 1.1; }
 .pantry-item .n { font-size: .58rem; font-weight: 800; color: var(--cocoa-soft); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 
 .burners { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.burner { height: 104px; background: #3B3330 !important; border-color: #2B2320 !important; border-radius: 20px !important; }
+.burner { height: 88px; background: #3B3330 !important; border-color: #2B2320 !important; border-radius: 20px !important; }
 .burner .ring {
-  position: absolute; width: 80px; height: 80px; border-radius: 50%;
+  position: absolute; width: 70px; height: 70px; border-radius: 50%;
   background: conic-gradient(var(--ring, #FFB547) calc(var(--p, 0) * 360deg), rgba(255,255,255,.12) 0);
-  -webkit-mask: radial-gradient(circle, transparent 30px, #000 31px); mask: radial-gradient(circle, transparent 30px, #000 31px);
+  -webkit-mask: radial-gradient(circle, transparent 26px, #000 27px); mask: radial-gradient(circle, transparent 26px, #000 27px);
 }
-.burner .content { font-size: 2.2rem; position: relative; z-index: 1; }
+.burner .content { font-size: 2rem; position: relative; z-index: 1; }
 .burner .content .muted { color: #A99A90; font-size: .75rem; }
 .burner.cooking { --ring: #FFB547; }
 .burner.cooking .ring { box-shadow: 0 0 18px rgba(255,140,40,.6); }
@@ -425,7 +420,7 @@ button.slot:active { transform: scale(.92); }
 .burner.burnt::after { content: '💨'; position: absolute; top: 6px; right: 10px; font-size: 1.3rem; animation: steam 1.6s ease-in infinite; opacity: .8; }
 
 .counter { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px; background: linear-gradient(180deg, #D8B48A, #C49A6C); border: 2px solid var(--cocoa); border-radius: 16px; }
-.counter-slot { height: 52px; font-size: 1.8rem; background: rgba(255,255,255,.55) !important; border-style: dashed !important; border-color: rgba(74,52,40,.35) !important; }
+.counter-slot { height: 48px; font-size: 1.8rem; background: rgba(255,255,255,.55) !important; border-style: dashed !important; border-color: rgba(74,52,40,.35) !important; }
 .counter-slot.filled { background: #fff !important; border-style: solid !important; border-color: var(--cocoa) !important; }
 .counter-slot.from-partner { animation: arrive .5s cubic-bezier(.3,1.6,.6,1); box-shadow: 0 0 0 3px var(--honey); }
 @keyframes arrive { from { transform: translateY(-14px) scale(.7); } }

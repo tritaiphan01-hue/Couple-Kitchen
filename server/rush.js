@@ -13,66 +13,51 @@
 
 const it = (emoji, en, vi) => ({ emoji, name: { en, vi } });
 
-const PACKS = {
-  western: {
-    ingredients: {
-      bread:  it('🍞', 'Bread', 'Bánh mì'),
-      patty:  it('🥩', 'Patty', 'Thịt bò'),
-      tomato: it('🍅', 'Tomato', 'Cà chua'),
-      lettuce: it('🥬', 'Lettuce', 'Xà lách'),
-      cheese: it('🧀', 'Cheese', 'Phô mai'),
-      egg:    it('🥚', 'Egg', 'Trứng'),
-      potato: it('🥔', 'Potato', 'Khoai tây'),
-      onion:  it('🧅', 'Onion', 'Hành tây'),
-      pasta:  it('🍝', 'Pasta', 'Mì Ý'),
-      carrot: it('🥕', 'Carrot', 'Cà rốt'),
-    },
-    dishes: {
-      salad:        { emoji: '🥗', name: { en: 'Salad', vi: 'Salad rau' }, comps: ['lettuce:chopped', 'tomato:chopped'] },
-      eggtoast:     { emoji: '🥪', name: { en: 'Egg Toast', vi: 'Bánh mì trứng' }, comps: ['bread:raw', 'egg:cooked'] },
-      burger:       { emoji: '🍔', name: { en: 'Burger', vi: 'Hamburger' }, comps: ['bread:raw', 'patty:cooked', 'lettuce:chopped'] },
-      fries:        { emoji: '🍟', name: { en: 'Fries', vi: 'Khoai tây chiên' }, comps: ['potato:chopped_cooked'] },
-      pasta:        { emoji: '🍝', name: { en: 'Tomato Pasta', vi: 'Mì Ý sốt cà' }, comps: ['pasta:cooked', 'tomato:chopped_cooked'] },
-      soup:         { emoji: '🍲', name: { en: 'Veggie Soup', vi: 'Súp rau củ' }, comps: ['onion:chopped_cooked', 'carrot:chopped_cooked'] },
-      cheeseburger: { emoji: '🍔', name: { en: 'Cheeseburger', vi: 'Burger phô mai' }, comps: ['bread:raw', 'patty:cooked', 'cheese:raw', 'tomato:chopped'] },
-    },
-    levels: [
-      ['salad', 'eggtoast', 'burger'],
-      ['salad', 'eggtoast', 'burger', 'fries', 'pasta'],
-      ['burger', 'fries', 'pasta', 'soup', 'cheeseburger'],
-    ],
-  },
-  vietnam: {
-    ingredients: {
-      baguette:  it('🥖', 'Baguette', 'Bánh mì'),
-      pork:      it('🥓', 'Pork', 'Thịt heo'),
-      beef:      it('🥩', 'Beef', 'Thịt bò'),
-      noodles:   it('🍜', 'Rice noodles', 'Bánh phở'),
-      rice:      it('🍚', 'Rice', 'Gạo'),
-      egg:       it('🥚', 'Egg', 'Trứng'),
-      herbs:     it('🌿', 'Herbs', 'Rau thơm'),
-      cucumber:  it('🥒', 'Cucumber', 'Dưa leo'),
-      shrimp:    it('🦐', 'Shrimp', 'Tôm'),
-      pineapple: it('🍍', 'Pineapple', 'Thơm'),
-      fish:      it('🐟', 'Fish', 'Cá'),
-      chili:     it('🌶️', 'Chili', 'Ớt'),
-    },
-    dishes: {
-      banhmi:   { emoji: '🥖', name: { en: 'Bánh Mì', vi: 'Bánh mì thịt' }, comps: ['baguette:raw', 'pork:cooked', 'cucumber:chopped'] },
-      comtrung: { emoji: '🍳', name: { en: 'Egg & Rice', vi: 'Cơm trứng' }, comps: ['rice:cooked', 'egg:cooked'] },
-      phobo:    { emoji: '🍜', name: { en: 'Phở Bò', vi: 'Phở bò' }, comps: ['noodles:cooked', 'beef:chopped', 'herbs:raw'] },
-      goicuon:  { emoji: '🌯', name: { en: 'Spring Rolls', vi: 'Gỏi cuốn' }, comps: ['shrimp:cooked', 'noodles:cooked', 'herbs:raw'] },
-      comtam:   { emoji: '🍛', name: { en: 'Cơm Tấm', vi: 'Cơm tấm' }, comps: ['rice:cooked', 'pork:cooked', 'cucumber:chopped'] },
-      canhchua: { emoji: '🍲', name: { en: 'Sour Soup', vi: 'Canh chua' }, comps: ['fish:chopped_cooked', 'pineapple:chopped', 'chili:chopped'] },
-      boluclac: { emoji: '🥩', name: { en: 'Shaking Beef', vi: 'Bò lúc lắc' }, comps: ['beef:chopped_cooked', 'cucumber:chopped'] },
-    },
-    levels: [
-      ['banhmi', 'comtrung', 'phobo'],
-      ['banhmi', 'comtrung', 'phobo', 'goicuon', 'comtam'],
-      ['phobo', 'goicuon', 'comtam', 'canhchua', 'boluclac'],
-    ],
-  },
+// One combined pantry (18 items = 3 neat rows on a phone) and a menu that mixes
+// Western and Vietnamese dishes in every level.
+const INGREDIENTS = {
+  bread:     it('🥖', 'Bread', 'Bánh mì'),
+  beef:      it('🥩', 'Beef', 'Thịt bò'),
+  pork:      it('🥓', 'Pork', 'Thịt heo'),
+  egg:       it('🥚', 'Egg', 'Trứng'),
+  shrimp:    it('🦐', 'Shrimp', 'Tôm'),
+  fish:      it('🐟', 'Fish', 'Cá'),
+  tomato:    it('🍅', 'Tomato', 'Cà chua'),
+  lettuce:   it('🥬', 'Lettuce', 'Xà lách'),
+  cucumber:  it('🥒', 'Cucumber', 'Dưa leo'),
+  onion:     it('🧅', 'Onion', 'Hành'),
+  potato:    it('🥔', 'Potato', 'Khoai tây'),
+  chili:     it('🌶️', 'Chili', 'Ớt'),
+  pineapple: it('🍍', 'Pineapple', 'Thơm'),
+  herbs:     it('🌿', 'Herbs', 'Rau thơm'),
+  cheese:    it('🧀', 'Cheese', 'Phô mai'),
+  rice:      it('🍚', 'Rice', 'Gạo'),
+  noodles:   it('🍜', 'Rice noodles', 'Bánh phở'),
+  pasta:     it('🍝', 'Pasta', 'Mì Ý'),
 };
+
+const DISHES = {
+  salad:        { emoji: '🥗', name: { en: 'Salad', vi: 'Salad rau' }, comps: ['lettuce:chopped', 'tomato:chopped'] },
+  eggtoast:     { emoji: '🍳', name: { en: 'Egg Toast', vi: 'Bánh mì trứng' }, comps: ['bread:raw', 'egg:cooked'] },
+  burger:       { emoji: '🍔', name: { en: 'Burger', vi: 'Hamburger' }, comps: ['bread:raw', 'beef:cooked', 'lettuce:chopped'] },
+  banhmi:       { emoji: '🥖', name: { en: 'Bánh Mì', vi: 'Bánh mì thịt' }, comps: ['bread:raw', 'pork:cooked', 'cucumber:chopped'] },
+  comtrung:     { emoji: '🍱', name: { en: 'Egg & Rice', vi: 'Cơm trứng' }, comps: ['rice:cooked', 'egg:cooked'] },
+  phobo:        { emoji: '🍜', name: { en: 'Phở Bò', vi: 'Phở bò' }, comps: ['noodles:cooked', 'beef:chopped', 'herbs:raw'] },
+  fries:        { emoji: '🍟', name: { en: 'Fries', vi: 'Khoai tây chiên' }, comps: ['potato:chopped_cooked'] },
+  pasta:        { emoji: '🍝', name: { en: 'Tomato Pasta', vi: 'Mì Ý sốt cà' }, comps: ['pasta:cooked', 'tomato:chopped_cooked'] },
+  goicuon:      { emoji: '🌯', name: { en: 'Spring Rolls', vi: 'Gỏi cuốn' }, comps: ['shrimp:cooked', 'noodles:cooked', 'herbs:raw'] },
+  comtam:       { emoji: '🍛', name: { en: 'Cơm Tấm', vi: 'Cơm tấm' }, comps: ['rice:cooked', 'pork:cooked', 'cucumber:chopped'] },
+  soup:         { emoji: '🥣', name: { en: 'Onion Soup', vi: 'Súp hành' }, comps: ['onion:chopped_cooked', 'cheese:raw'] },
+  cheeseburger: { emoji: '🧀', name: { en: 'Cheeseburger', vi: 'Burger phô mai' }, comps: ['bread:raw', 'beef:cooked', 'cheese:raw', 'tomato:chopped'] },
+  canhchua:     { emoji: '🍲', name: { en: 'Sour Soup', vi: 'Canh chua' }, comps: ['fish:chopped_cooked', 'pineapple:chopped', 'chili:chopped'] },
+  boluclac:     { emoji: '🥘', name: { en: 'Shaking Beef', vi: 'Bò lúc lắc' }, comps: ['beef:chopped_cooked', 'cucumber:chopped'] },
+};
+
+const LEVEL_DISHES = [
+  ['salad', 'eggtoast', 'burger', 'banhmi', 'comtrung', 'phobo'],
+  ['burger', 'banhmi', 'comtrung', 'phobo', 'fries', 'pasta', 'goicuon', 'comtam'],
+  ['fries', 'pasta', 'goicuon', 'comtam', 'soup', 'cheeseburger', 'canhchua', 'boluclac'],
+];
 
 const LEVELS = [
   { durationMs: 120000, maxOrders: 2, spawnMs: 15000, patienceMs: 65000, cookMs: 5000, burnMs: 12000, chopTaps: 4, stars: [40, 90, 140] },
@@ -87,7 +72,6 @@ const COUNTDOWN_MS = 3000;
 const MISS_PENALTY = 5;
 
 const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
-const packOf = id => PACKS[id] || PACKS.western;
 
 // ---- Items ---------------------------------------------------------------
 
@@ -106,11 +90,10 @@ const itemKey = (item, level) => `${item.ing}:${itemState(item, level)}`;
 
 // ---- Game ----------------------------------------------------------------
 
-function createRushGame(levelNo = 1, packId = 'western', roles = ['cook', 'prep']) {
+function createRushGame(levelNo = 1, roles = ['cook', 'prep']) {
   const level = Math.min(Math.max(1, levelNo | 0), LEVELS.length);
   return {
     mode: 'rush',
-    pack: PACKS[packId] ? packId : 'western',
     level,
     phase: 'ready',            // ready → countdown → playing → results
     ready: [false, false],
@@ -143,8 +126,7 @@ function pushEvent(game, ev) {
 }
 
 function spawnOrder(game, rand = Math.random) {
-  const pack = packOf(game.pack);
-  const pool = pack.levels[game.level - 1];
+  const pool = LEVEL_DISHES[game.level - 1];
   const choices = pool.length > 1 ? pool.filter(d => d !== game.lastDish) : pool;
   const dish = choices[Math.floor(rand() * choices.length)];
   game.lastDish = dish;
@@ -189,7 +171,7 @@ function act(game, seat, action = {}) {
   switch (action.type) {
     case 'pantry': {
       if (role !== 'cook') return 'wrong_role';
-      if (!has(packOf(game.pack).ingredients, action.ing)) return 'unknown_ingredient';
+      if (!has(INGREDIENTS, action.ing)) return 'unknown_ingredient';
       if (hand) return 'hands_full';
       game.hands[seat] = newItem(action.ing);
       return null;
@@ -252,11 +234,10 @@ function act(game, seat, action = {}) {
     case 'serve': {
       if (role !== 'prep') return 'wrong_role';
       if (!game.plate.length) return 'empty_plate';
-      const dishes = packOf(game.pack).dishes;
       const plateKey = game.plate.map(it => itemKey(it, c)).sort().join('|');
       // Serve the most urgent matching order.
       const match = game.orders
-        .filter(o => dishes[o.dish].comps.slice().sort().join('|') === plateKey)
+        .filter(o => DISHES[o.dish].comps.slice().sort().join('|') === plateKey)
         .sort((a, b) => a.expiresAt - b.expiresAt)[0];
       if (!match) {
         game.stats.wrong++;
@@ -264,7 +245,7 @@ function act(game, seat, action = {}) {
         return 'no_matching_order';
       }
       const left = Math.max(0, match.expiresAt - game.clock) / c.patienceMs;
-      const base = 10 + 5 * dishes[match.dish].comps.length;
+      const base = 10 + 5 * DISHES[match.dish].comps.length;
       const tip = Math.round(left * 10);
       game.coins += base + tip;
       game.stats.served++;
@@ -358,7 +339,6 @@ function viewFor(game, seat) {
   const c = cfg(game);
   return {
     mode: 'rush',
-    pack: game.pack,
     level: game.level,
     phase: game.phase,
     ready: game.ready,
@@ -380,4 +360,4 @@ function viewFor(game, seat) {
   };
 }
 
-module.exports = { PACKS, LEVELS, createRushGame, act, tick, viewFor, itemState, COUNTDOWN_MS };
+module.exports = { INGREDIENTS, DISHES, LEVEL_DISHES, LEVELS, createRushGame, act, tick, viewFor, itemState, COUNTDOWN_MS };

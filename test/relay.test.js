@@ -20,12 +20,14 @@ function playTarget(game) {
   }
 }
 
-test('every generated recipe is solvable for 3 stars, in both pantries', () => {
+test('every generated recipe is solvable for 3 stars from that round\'s market', () => {
   for (let i = 0; i < 1000; i++) {
-    const pack = i % 2 ? 'vietnam' : 'western';
-    const g = relay.createRelayGame(1 + (i % 2), pack);
-    assert.strictEqual(g.pack, pack);
-    for (const id of g.recipe.target.ingredients) assert.ok(relay.PACKS[pack].ingredients[id], id);
+    const g = relay.createRelayGame(1 + (i % 2));
+    assert.strictEqual(g.market.length, relay.MARKET_SIZE);
+    assert.strictEqual(new Set(g.market).size, relay.MARKET_SIZE);
+    for (const id of g.recipe.target.ingredients) assert.ok(g.market.includes(id), id);
+    // "no X" clues must only name things that are actually at the market
+    for (const c of g.recipe.cards.flat()) if (c.type === 'noIng') assert.ok(g.market.includes(c.id), c.id);
     assert.strictEqual(g.recipe.cards[0].length, 3);
     assert.strictEqual(g.recipe.cards[1].length, 3);
     playTarget(g);
@@ -46,15 +48,15 @@ test('turn order is enforced and alternates', () => {
 
 test('rejects duplicate and unknown ingredients', () => {
   const g = relay.createRelayGame(1);
-  assert.strictEqual(relay.applyMove(g, 0, { kind: 'ingredient', id: 'carrot' }), null);
-  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'carrot' }), 'already_in_pot');
+  const [first] = g.market;
+  assert.strictEqual(relay.applyMove(g, 0, { kind: 'ingredient', id: first }), null);
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: first }), 'already_in_pot');
   assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'pizza' }), 'unknown_ingredient');
   assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'toString' }), 'unknown_ingredient');
   assert.strictEqual(relay.applyMove(g, 1, { kind: 'dance' }), 'invalid_move');
-  // Ingredients from the other pantry are rejected.
-  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'nuoc_mam' }), 'unknown_ingredient');
-  const vn = relay.createRelayGame(1, 'vietnam');
-  assert.strictEqual(relay.applyMove(vn, 0, { kind: 'ingredient', id: 'nuoc_mam' }), null);
+  // Ingredients that aren't at today's market are rejected.
+  const missing = Object.keys(relay.INGREDIENTS).find(id => !g.market.includes(id));
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: missing }), 'unknown_ingredient');
 });
 
 test("a player's view never leaks the partner's card before results", () => {

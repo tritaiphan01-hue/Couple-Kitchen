@@ -161,9 +161,7 @@
   }
   $('#create-btn').addEventListener('click', () => {
     sfx.tap();
-    // Vietnamese speakers start with the Vietnamese pantry; either player can switch in the lobby.
-    const pack = I18N.lang === 'vi' ? 'vietnam' : 'western';
-    socket.emit('room:create', { name: myName(), playerId, pack }, res => {
+    socket.emit('room:create', { name: myName(), playerId }, res => {
       if (res.error) return toast(errText(res.error));
       history.replaceState(null, '', '?room=' + res.code);
     });
@@ -196,10 +194,6 @@
       else { await navigator.clipboard.writeText(`${text}\n${url}`); toast(t('lobby.copied')); }
     } catch { /* user cancelled */ }
   });
-  document.querySelectorAll('.pack-btn').forEach(btn => btn.addEventListener('click', () => {
-    sfx.tap(); buzz(8);
-    socket.emit('room:pack', { pack: btn.dataset.pack });
-  }));
   document.querySelectorAll('.mode-card').forEach(btn => btn.addEventListener('click', () => {
     sfx.tap();
     socket.emit('mode:start', { mode: btn.dataset.mode }, res => { if (res && res.error) { sfx.err(); toast(errText(res.error)); } });
@@ -230,7 +224,6 @@
     $('#lobby-hint').textContent = !partner ? t('lobby.hintAlone')
       : !partner.connected ? t('lobby.hintAway', { name: partner.name }) : t('lobby.hintReady');
     document.querySelectorAll('.mode-card[data-mode="relay"], .mode-card[data-mode="rush"]').forEach(b => (b.disabled = !partner));
-    document.querySelectorAll('.pack-btn').forEach(b => b.setAttribute('aria-checked', String(b.dataset.pack === room.pack)));
 
     const s = room.stats;
     const recap = $('#lobby-recap');
@@ -276,13 +269,12 @@
   function renderRelay(quiet = false) {
     const g = state.game, room = state.room;
     const mine = g.currentSeat === room.seat;
-    const pack = catalog.packs[g.pack];
-    const ingIds = Object.keys(pack.ingredients);
+    const ingIds = g.market;   // today's market: 18 of the combined pantry
     const inPot = new Set(g.pot.filter(s => s.kind === 'ingredient').map(s => s.id));
     if (selection && selection.kind === 'ingredient' && inPot.has(selection.id)) selection = null;
     if (!mine) selection = null;
 
-    $('#relay-title').textContent = t('relay.title', { dish: I18N.dishTypeName(g.pack, g.dishType), round: g.round });
+    $('#relay-title').textContent = t('relay.title', { dish: I18N.dishTypeName(g.dishType), round: g.round });
     const bannerEl = $('#turn-banner');
     bannerEl.classList.toggle('mine', mine);
     bannerEl.textContent = mine
@@ -403,11 +395,11 @@
     const cooked = item.cookedMs + extra >= cfg.cookMs;
     return item.chopped && cooked ? 'chopped_cooked' : cooked ? 'cooked' : item.chopped ? 'chopped' : 'raw';
   }
-  function itemHTML(pack, ing, st) {
-    const info = I18N.rushIng(pack, ing);
+  function itemHTML(ing, st) {
+    const info = I18N.rushIng(ing);
     return `<span class="itm st-${st}"><span class="e">${info.emoji}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
   }
-  const itemLabel = (pack, ing, st) => `${I18N.rushIng(pack, ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
+  const itemLabel = (ing, st) => `${I18N.rushIng(ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
 
   function shake(node) { if (!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
   function rushSend(action, node) {
@@ -470,7 +462,7 @@
     }
 
     if (g.phase !== 'playing') return;
-    const pantryIds = Object.keys(catalog.rush[g.pack].ingredients);
+    const pantryIds = Object.keys(catalog.rush.ingredients);
     const counter = el('div', { class: 'counter' }, g.counter.map((_, i) => tapBtn('slot counter-slot', b => { sfx.tap(); rushSend({ type: 'counter', i }, b); })));
     const handRow = el('div', { class: 'hand-row' },
       el('div', { class: 'hand', id: 'rush-hand' }),
@@ -480,7 +472,7 @@
       body.append(el('div', { class: 'kit cook' },
         el('div', { class: 'kit-label' }, t('rush.pantry')),
         el('div', { class: 'rush-pantry' }, pantryIds.map(id => tapBtn('slot pantry-item', b => { sfx.tap(); buzz(6); rushSend({ type: 'pantry', ing: id }, b); },
-          el('span', { class: 'e' }, I18N.rushIng(g.pack, id).emoji), el('span', { class: 'n' }, I18N.rushIng(g.pack, id).name[I18N.lang])))),
+          el('span', { class: 'e' }, I18N.rushIng(id).emoji), el('span', { class: 'n' }, I18N.rushIng(id).name[I18N.lang])))),
         el('div', { class: 'kit-label' }, t('rush.stove')),
         el('div', { class: 'burners' }, g.burners.map((_, i) => tapBtn('slot burner', b => { sfx.tap(); rushSend({ type: 'burner', i }, b); },
           el('span', { class: 'ring' }), el('span', { class: 'content' })))),
@@ -538,10 +530,10 @@
     if (ids !== rushUI.orderIds) {
       rushUI.orderIds = ids;
       $('#rush-orders').replaceChildren(...g.orders.map(o => {
-        const d = I18N.rushDish(g.pack, o.dish);
+        const d = I18N.rushDish(o.dish);
         const tk = el('div', { class: 'ticket', 'data-id': o.id });
         tk.innerHTML = `<div class="tk-head"><span class="tk-e">${d.emoji}</span><span class="tk-n">${d.name[I18N.lang]}</span></div>
-          <div class="tk-comps">${d.comps.map(c => { const [ing, st] = c.split(':'); return itemHTML(g.pack, ing, st); }).join('')}</div>
+          <div class="tk-comps">${d.comps.map(c => { const [ing, st] = c.split(':'); return itemHTML(ing, st); }).join('')}</div>
           <div class="tk-bar"><i></i></div>`;
         return tk;
       }));
@@ -550,7 +542,7 @@
     // Counter
     document.querySelectorAll('.counter-slot').forEach((b, i) => {
       const slot = g.counter[i];
-      b.innerHTML = slot ? itemHTML(g.pack, slot.item.ing, rushItemState(slot.item, cfg)) : '';
+      b.innerHTML = slot ? itemHTML(slot.item.ing, rushItemState(slot.item, cfg)) : '';
       b.classList.toggle('filled', !!slot);
       b.classList.toggle('from-partner', !!slot && slot.by !== me);
     });
@@ -561,7 +553,7 @@
     if (handEl) {
       if (hand) {
         const st = rushItemState(hand, cfg);
-        handEl.innerHTML = `${itemHTML(g.pack, hand.ing, st)}<span class="hand-text"><small>${t('rush.holding')}</small>${itemLabel(g.pack, hand.ing, st)}</span>`;
+        handEl.innerHTML = `${itemHTML(hand.ing, st)}<span class="hand-text"><small>${t('rush.holding')}</small>${itemLabel(hand.ing, st)}</span>`;
       } else handEl.innerHTML = `<span class="hand-text muted">${t('rush.handsEmpty')}</span>`;
       handEl.classList.toggle('full', !!hand);
     }
@@ -569,13 +561,13 @@
     if (g.myRole === 'prep') {
       const board = $('.board');
       const bi = g.board.item;
-      board.querySelector('.content').innerHTML = bi ? itemHTML(g.pack, bi.ing, rushItemState(bi, cfg)) : '';
+      board.querySelector('.content').innerHTML = bi ? itemHTML(bi.ing, rushItemState(bi, cfg)) : '';
       board.querySelector('.board-text').textContent = !bi ? t('rush.boardEmpty')
         : bi.chopped ? t('rush.chopDone') : t('rush.tapChop', { n: g.board.taps, total: cfg.chopTaps });
       board.querySelector('.chopbar i').style.width = bi ? (bi.chopped ? 100 : (g.board.taps / cfg.chopTaps) * 100) + '%' : '0%';
       board.classList.toggle('ready-pick', !!(bi && bi.chopped));
       $('.plate .content').innerHTML = g.plate.length
-        ? g.plate.map(it => itemHTML(g.pack, it.ing, rushItemState(it, cfg))).join('')
+        ? g.plate.map(it => itemHTML(it.ing, rushItemState(it, cfg))).join('')
         : `<span class="muted">${t('rush.plateEmpty')}</span>`;
     }
     if (g.myRole === 'cook') document.querySelectorAll('.burner').forEach((b, i) => { if (!g.burners[i].item) { b.querySelector('.content').innerHTML = `<span class="muted">${t('rush.burnerEmpty')}</span>`; rushUI.burnerState[i] = null; } });
@@ -615,7 +607,7 @@
         const key = bn.item.id + ':' + (cls === 'burnt' ? 'burnt' : st);
         const prevKey = rushUI.burnerState[i];
         if (key !== prevKey) {
-          b.querySelector('.content').innerHTML = itemHTML(g.pack, bn.item.ing, cls === 'burnt' ? 'burnt' : st);
+          b.querySelector('.content').innerHTML = itemHTML(bn.item.ing, cls === 'burnt' ? 'burnt' : st);
           if (prevKey && prevKey.split(':')[0] === String(bn.item.id)) {
             if (cls === 'done') { sfx.done(); buzz(20); }
           }
@@ -638,15 +630,15 @@
     if (quiet) return;
     for (const e of evs) {
       if (e.type === 'served') {
-        const d = I18N.rushDish(g.pack, e.dish);
+        const d = I18N.rushDish(e.dish);
         sfx.ding(); buzz([30, 40, 30]); floatEmoji('💰', 4);
         toast(t('rush.served', { coins: e.coins, dish: d.emoji + ' ' + d.name[I18N.lang] }), 1500);
       } else if (e.type === 'missed') {
-        const d = I18N.rushDish(g.pack, e.dish);
+        const d = I18N.rushDish(e.dish);
         sfx.err(); buzz(80); toast(t('rush.missed', { dish: d.emoji + ' ' + d.name[I18N.lang] }), 1800);
       } else if (e.type === 'burnt') {
         floatEmoji('💨', 4); buzz(60);
-        toast(t('rush.burntEv', { ing: I18N.rushIng(g.pack, e.ing).emoji + ' ' + I18N.rushIng(g.pack, e.ing).name[I18N.lang] }), 1500);
+        toast(t('rush.burntEv', { ing: I18N.rushIng(e.ing).emoji + ' ' + I18N.rushIng(e.ing).name[I18N.lang] }), 1500);
       } else if (e.type === 'passed' && e.by !== me) {
         sfx.whoosh(); buzz(25);
       }
@@ -657,7 +649,7 @@
     const g = state.game, room = state.room;
     rushUI.clockBase = g.clock; rushUI.recvAt = performance.now(); rushUI.running = g.phase === 'playing' && g.running;
     const group = g.phase === 'countdown' ? 'ready' : g.phase;
-    const key = [group, g.myRole, g.pack, g.level, g.roles.join(), I18N.lang, maxUnlocked(room), playerName(0), playerName(1)].join('|');
+    const key = [group, g.myRole, g.level, g.roles.join(), I18N.lang, maxUnlocked(room), playerName(0), playerName(1)].join('|');
     if (key !== rushUI.key) { rushUI.key = key; buildRush(g); }
     rushEvents(g, quiet);
     // Countdown beeps

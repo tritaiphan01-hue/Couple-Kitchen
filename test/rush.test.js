@@ -5,8 +5,8 @@ const rush = require('../server/rush');
 const COOK = 0, PREP = 1;
 
 // Start a game and fast-forward through the countdown.
-function started(level = 1, pack = 'western') {
-  const g = rush.createRushGame(level, pack);
+function started(level = 1) {
+  const g = rush.createRushGame(level);
   assert.strictEqual(rush.act(g, 0, { type: 'ready' }), null);
   assert.strictEqual(rush.act(g, 1, { type: 'ready' }), null);
   assert.strictEqual(g.phase, 'countdown');
@@ -46,11 +46,12 @@ function make(g, ing, state) {
 }
 
 test('every dish in every level can be cooked and served', () => {
-  for (const pack of Object.keys(rush.PACKS)) {
-    const P = rush.PACKS[pack];
+  {
+    const P = { ingredients: rush.INGREDIENTS, dishes: rush.DISHES };
     for (let level = 1; level <= 3; level++) {
-      for (const dish of P.levels[level - 1]) {
-        const g = started(level, pack);
+      for (const dish of rush.LEVEL_DISHES[level - 1]) {
+        const pack = 'level ' + level;
+        const g = started(level);
         g.orders = [{ id: 999, dish, createdAt: g.clock, expiresAt: g.clock + 999999 }];
         for (const comp of P.dishes[dish].comps) {
           const [ing, state] = comp.split(':');
@@ -68,13 +69,24 @@ test('every dish in every level can be cooked and served', () => {
   }
 });
 
+test('the pantry fits 3 rows and every level mixes both cuisines', () => {
+  assert.strictEqual(Object.keys(rush.INGREDIENTS).length, 18);
+  const vietnamese = new Set(['banhmi', 'comtrung', 'phobo', 'goicuon', 'comtam', 'canhchua', 'boluclac']);
+  for (const dishes of rush.LEVEL_DISHES) {
+    assert.ok(dishes.some(d => vietnamese.has(d)) && dishes.some(d => !vietnamese.has(d)), dishes.join());
+  }
+  // every ingredient is used by some dish
+  const used = new Set(Object.values(rush.DISHES).flatMap(d => d.comps.map(c => c.split(':')[0])));
+  for (const id of Object.keys(rush.INGREDIENTS)) assert.ok(used.has(id), id + ' is never used');
+});
+
 test('roles are enforced', () => {
   const g = started();
   assert.strictEqual(rush.act(g, PREP, { type: 'pantry', ing: 'bread' }), 'wrong_role');
   assert.strictEqual(rush.act(g, COOK, { type: 'board' }), 'wrong_role');
   assert.strictEqual(rush.act(g, COOK, { type: 'serve' }), 'wrong_role');
   assert.strictEqual(rush.act(g, PREP, { type: 'burner', i: 0 }), 'wrong_role');
-  assert.strictEqual(rush.act(g, COOK, { type: 'pantry', ing: 'nuoc_mam' }), 'unknown_ingredient');
+  assert.strictEqual(rush.act(g, COOK, { type: 'pantry', ing: 'pizza' }), 'unknown_ingredient');
   ok(g, COOK, { type: 'pantry', ing: 'bread' });
   assert.strictEqual(rush.act(g, COOK, { type: 'pantry', ing: 'egg' }), 'hands_full');
 });
@@ -90,7 +102,7 @@ test('swapping roles on the ready screen', () => {
 test('food burns if left on the stove, and burnt food cannot be plated', () => {
   const g = started(1);
   const c = rush.LEVELS[0];
-  ok(g, COOK, { type: 'pantry', ing: 'patty' });
+  ok(g, COOK, { type: 'pantry', ing: 'beef' });
   ok(g, COOK, { type: 'burner', i: 1 });
   advance(g, c.cookMs + c.burnMs + 500);
   assert.strictEqual(g.burners[1].item.burnt, true);
@@ -136,10 +148,9 @@ test('orders expire, new ones arrive, and the level ends with stars', () => {
 });
 
 test('view includes everything needed to draw both halves', () => {
-  const g = started(2, 'vietnam');
+  const g = started(2);
   const v = rush.viewFor(g, PREP);
   assert.strictEqual(v.myRole, 'prep');
-  assert.strictEqual(v.pack, 'vietnam');
   assert.strictEqual(v.burners.length, 2);
   assert.strictEqual(v.counter.length, 4);
   assert.ok(v.config.cookMs > 0);

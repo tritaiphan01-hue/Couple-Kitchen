@@ -9,12 +9,14 @@ const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;   // forget rooms idle for a day
 const MODES = { relay, rush };              // 'sneak' arrives later
 const TICK_MS = 250;
-const PACKS_OK = new Set(Object.keys(relay.PACKS));
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
-app.get('/api/catalog', (_req, res) => res.json({ packs: relay.PACKS, actions: relay.ACTIONS, rush: rush.PACKS }));
+app.get('/api/catalog', (_req, res) => res.json({
+  ingredients: relay.INGREDIENTS, dishTypes: relay.DISH_TYPES, actions: relay.ACTIONS,
+  rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES },
+}));
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -51,7 +53,6 @@ function publicRoom(room, seat) {
     seat,
     screen: room.game ? 'game' : 'lobby',
     players: room.players.map(p => (p ? { name: p.name, connected: p.connected } : null)),
-    pack: room.pack,
     stats: room.stats,
     rushBest: room.rushBest,
   };
@@ -89,14 +90,13 @@ function attach(socket, room, seat) {
 }
 
 io.on('connection', socket => {
-  socket.on('room:create', ({ name, playerId, pack } = {}, ack = () => {}) => {
+  socket.on('room:create', ({ name, playerId } = {}, ack = () => {}) => {
     if (!playerId) return ack({ error: 'missing_id' });
     const code = newCode();
     const room = {
       code,
       players: [{ id: playerId, name: cleanName(name, 'Honey'), socketId: null, connected: false }, null],
       game: null,
-      pack: PACKS_OK.has(pack) ? pack : relay.DEFAULT_PACK,
       stats: { rounds: 0, stars: 0, dishes: [] },
       rushBest: {},              // level → best stars in Split Kitchen
       lastActive: Date.now(),
@@ -151,8 +151,8 @@ io.on('connection', socket => {
     if (!MODES[mode]) return ack({ error: 'mode_soon' });
     if (!room.players[0] || !room.players[1]) return ack({ error: 'need_partner' });
     room.game = mode === 'rush'
-      ? rush.createRushGame(rushStartLevel(room), room.pack)
-      : relay.createRelayGame(room.stats.rounds + 1, room.pack);
+      ? rush.createRushGame(rushStartLevel(room))
+      : relay.createRelayGame(room.stats.rounds + 1);
     ack({ ok: true });
     broadcast(room);
   });
@@ -173,7 +173,7 @@ io.on('connection', socket => {
     if (!g || g.mode !== 'rush' || (g.phase !== 'ready' && g.phase !== 'results')) return;
     level = level | 0;
     if (level < 1 || level > maxUnlocked(room)) return;
-    room.game = rush.createRushGame(level, room.pack, g.roles);
+    room.game = rush.createRushGame(level, g.roles);
     broadcast(room);
   });
 
@@ -190,15 +190,7 @@ io.on('connection', socket => {
   socket.on('relay:next', () => {
     const room = rooms.get(socket.data.code);
     if (!room || !room.game || room.game.phase !== 'results') return;
-    room.game = relay.createRelayGame(room.stats.rounds + 1, room.pack);
-    broadcast(room);
-  });
-
-  // Choose the pantry: Western kitchen or Vietnamese kitchen. Applies to the next dish.
-  socket.on('room:pack', ({ pack } = {}) => {
-    const room = rooms.get(socket.data.code);
-    if (!room || !PACKS_OK.has(pack) || room.pack === pack) return;
-    room.pack = pack;
+    room.game = relay.createRelayGame(room.stats.rounds + 1);
     broadcast(room);
   });
 
