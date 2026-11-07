@@ -16,6 +16,7 @@ const ITEMS = {
   slippers:   { kind: 'kitchen', mode: 'sneak', emoji: '🩴', price: 120, name: n('Soft slippers', 'Dép êm'),               desc: n('Creaky boards are quieter (3 → 2)', 'Ván kẽo kẹt êm hơn (3 → 2)') },
   quietFridge:{ kind: 'kitchen', mode: 'sneak', emoji: '🧊', price: 100, name: n('Quiet fridge', 'Tủ lạnh êm'),            desc: n('Opening the fridge alone: 3 → 2', 'Mở tủ lạnh một mình: 3 → 2') },
   earplugs:   { kind: 'kitchen', mode: 'sneak', emoji: '🎧', price: 180, name: n('Roommate earplugs', 'Nút tai cho bạn cùng phòng'), desc: n('Noise meter holds 15% more', 'Thanh tiếng ồn chứa thêm 15%') },
+  dogBone:    { kind: 'kitchen', mode: 'sneak', emoji: '🦴', price: 150, name: n('Chew bone', 'Xương gặm'),          desc: n('The dog never growls', 'Chó không gầm gừ nữa') },
   catTreat:   { kind: 'kitchen', mode: 'sneak', emoji: '🐟', price: 200, name: n('Cat treats', 'Bánh thưởng cho mèo'),     desc: n('The cat naps all night', 'Mèo ngủ suốt đêm') },
 
   // ---- Decor (shared wallet). Changes how the kitchen looks. ----

@@ -539,6 +539,8 @@ body.lights-on { animation: lights 1.6s ease; }
 .tile.st-F { background: #3E6E8E; box-shadow: inset 0 0 14px rgba(160,220,255,.7); filter: none; }
 .tile.st-T { background: #7A5A3A; }
 .tile.st-D { background: #6B4A3A; filter: none; }
+.tile.dog { background: #3A3560; }
+.tile.dog .st-e { font-size: min(6vw, 1.5rem); animation: bob 2.4s ease-in-out infinite; }
 .door-face { position: absolute; top: -2px; right: 0; font-size: .9rem; }
 
 .markers { position: absolute; inset: 0; pointer-events: none; }

@@ -282,11 +282,14 @@
         t('lobby.recapBest') + ' ', el('b', {}, `${I18N.dishName(best.dish, best.names)} ${'⭐'.repeat(best.stars) || '(0⭐)'}`),
       );
     }
+    // Progress per mode: highest level reached and total stars.
     for (const [bestKey, label, unit] of [['rushBest', 'lobby.rushBest', 'rush.level'], ['sneakBest', 'lobby.sneakBest', 'sneak.night']]) {
       const best = room[bestKey] || {};
-      if (!Object.keys(best).length) continue;
+      const levels = Object.keys(best).map(Number);
+      if (!levels.length) continue;
       if (recap.childNodes.length) recap.append(el('br'));
-      recap.append(t(label) + ' ', el('b', {}, [1, 2, 3].filter(n => n in best).map(n => `${t(unit, { n })} ${'⭐'.repeat(best[n]) || '–'}`).join(' · ')));
+      const stars = Object.values(best).reduce((a, b) => a + b, 0);
+      recap.append(t(label) + ' ', el('b', {}, `${t(unit, { n: Math.max(...levels) })} · ${stars} ⭐`));
     }
   }
 
@@ -765,7 +768,7 @@
   }
 
   // ───────── Midnight Snack ─────────
-  const STATION_EMOJI = { F: '🧊', S: '🥫', O: '🍳', B: '🔪', T: '🍽️', D: '🚪' };
+  const STATION_EMOJI = { F: '🧊', S: '🥫', O: '🍳', B: '🔪', T: '🍽️', D: '🚪', G: '🐕' };
   const sneakUI = { key: null, animatedRound: null, animating: false, disp: null, introSeen: {}, timers: [] };
   sfx.creak = () => { tone(140, 0.18, 'sawtooth', 0.05); tone(110, 0.2, 'sawtooth', 0.04, 0.08); };
   sfx.meow = () => { tone(700, 0.12, 'triangle', 0.1); tone(950, 0.18, 'triangle', 0.08, 0.1); tone(600, 0.2, 'triangle', 0.06, 0.25); };
@@ -797,6 +800,7 @@
       if (st.t === 'move') {
         n += sTile(g, st.x, st.y) === '~' ? N.creak : N.walk;
         if (door && Math.abs(door.x - st.x) + Math.abs(door.y - st.y) <= 2) n += N.nearDoor;
+        if (N.dog && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => sTile(g, st.x + dx, st.y + dy) === 'G')) n += N.dog;
       } else if (st.t === 'use') {
         const ch = sTile(g, st.x, st.y);
         const o = otherSteps[k];
@@ -849,7 +853,7 @@
     board.style.setProperty('--w', W); board.style.setProperty('--h', H);
     board.replaceChildren();
     g.map.forEach((row, y) => [...row].forEach((ch, x) => {
-      const cls = ch === '#' ? 'wall' : ch === '~' ? 'floor creak' : '.12'.includes(ch) ? 'floor' : 'station st-' + ch;
+      const cls = ch === '#' ? 'wall' : ch === '~' ? 'floor creak' : '.12'.includes(ch) ? 'floor' : ch === 'G' ? 'dog' : 'station st-' + ch;
       const tile = el('div', { class: 'tile ' + cls, 'data-x': x, 'data-y': y });
       if (STATION_EMOJI[ch]) tile.append(el('span', { class: 'st-e' }, STATION_EMOJI[ch]));
       if (ch === 'D') tile.append(el('span', { class: 'door-face', id: 'door-face' }, '😴'));
@@ -979,11 +983,12 @@
           const who = e.who != null ? st.players[e.who] : null;
           const at = who || st.players[0];
           const item = e.ing ? I18N.sneakIng(e.ing).emoji : '';
-          const txt = { creak: t('sneak.ev.creak'), meow: t('sneak.ev.meow'), bonk: t('sneak.ev.bonk'), hold: t('sneak.ev.hold'),
+          const txt = { creak: t('sneak.ev.creak'), meow: t('sneak.ev.meow'), bonk: t('sneak.ev.bonk'), hold: t('sneak.ev.hold'), growl: t('sneak.ev.growl'),
             grab: '+' + item, cook: '🔥 ' + item, chop: '🔪 ' + item, place: '✅ ' + item, putBack: '↩ ' + item,
             wrongPlace: t('sneak.ev.wrongPlace'), handsFull: t('sneak.ev.handsFull'), miss: t('sneak.ev.miss'), nothing: t('sneak.ev.nothing') }[e.type];
           if (txt) sneakPop(g, at.x, at.y, txt, e.type);
           if (e.type === 'creak') { sfx.creak(); buzz(40); quietStep = false; }
+          else if (e.type === 'growl') { tone(85, 0.35, 'sawtooth', 0.06); buzz(60); quietStep = false; }
           else if (e.type === 'meow') { sfx.meow(); buzz([40, 40, 40]); quietStep = false; }
           else if (e.type === 'bonk') { sfx.bonk(); buzz(80); quietStep = false; }
           else if (e.type === 'place') { sfx.done(); buzz(20); }
@@ -1050,6 +1055,7 @@
     [0, 1].forEach(s => { if (st.creaks[s]) lines.push(t('sneak.statCreaks', playerName(s), st.creaks[s])); });
     [0, 1].forEach(s => { if (st.meows[s]) lines.push(t('sneak.statMeows', playerName(s), st.meows[s])); });
     if (st.bonks) lines.push(t('sneak.statBonks', st.bonks));
+    if (st.growls) lines.push(t('sneak.statGrowls', st.growls));
     if (st.held) lines.push(t('sneak.statHeld', st.held));
     if (!lines.length) lines.push(t('sneak.statQuiet'));
     const unlocked = r.unlocked || 1;

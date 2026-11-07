@@ -16,16 +16,20 @@ const INGREDIENTS = {
   egg:      it('🥚', 'Egg', 'Trứng'),
   pork:     it('🥓', 'Pork', 'Thịt heo'),
   cucumber: it('🥒', 'Cucumber', 'Dưa leo'),
+  herbs:    it('🌿', 'Herbs', 'Rau thơm'),
+  tomato:   it('🍅', 'Tomato', 'Cà chua'),
+  onion:    it('🧅', 'Onion', 'Hành'),
 };
 
 const STEPS_PER_ROUND = 3;
-const NOISE = { walk: 1, creak: 3, nearDoor: 1, fridge: 3, fridgeHeld: 1, shelf: 1, stove: 2, board: 2, bonk: 5, meow: 5 };
+const NOISE = { walk: 1, creak: 3, nearDoor: 1, fridge: 3, fridgeHeld: 1, shelf: 1, stove: 2, board: 2, bonk: 5, meow: 5, dog: 2 };
 const DECAY = 1;
 
 // Map legend:
 //   #  wall / counter      .  floor        ~  creaky floorboard
 //   D  roommate's door     1 2  start positions (floor)
 //   F  fridge   S  shelf   O  stove   B  chopping board   T  table
+//   G  sleeping dog (blocks the way; it growls if you stop right next to it)
 const MAPS = [
   {
     snack: { emoji: '🥪', name: { en: 'Cheese Sandwich', vi: 'Bánh mì phô mai' } },
@@ -82,6 +86,44 @@ const MAPS = [
     cat: [[2, 6], [3, 6], [4, 6], [3, 6]],
     bot: { rounds: 7, noise: 37 },
   },
+  {
+    snack: { emoji: '🍜', name: { en: 'Late-night Hủ Tiếu', vi: 'Hủ tiếu khuya' } },
+    map: [
+      '###D###',
+      '#S...O#',
+      '#.~.~.#',
+      '#..F..#',
+      '#.....#',
+      '#~G.T~#',
+      '#.....#',
+      '#1...2#',
+      '#######',
+    ],
+    sources: { F: ['pork', 'herbs'], S: ['noodles'] },
+    recipe: ['noodles:cooked', 'pork:cooked', 'herbs:raw'],
+    cat: [[5, 6]],
+    catAwake: [[5, 2], [5, 3], [5, 4], [5, 3]],
+    bot: { rounds: 9, noise: 70 },
+  },
+  {
+    snack: { emoji: '🍳', name: { en: 'Tomato Omelette', vi: 'Trứng chiên cà chua' } },
+    map: [
+      '#####D#',
+      '#B.O..#',
+      '#~...~#',
+      'S..F..#',
+      '#.....#',
+      '#.~G~.#',
+      '#.....#',
+      '#1.T.2#',
+      '#######',
+    ],
+    sources: { F: ['egg'], S: ['tomato', 'onion'] },
+    recipe: ['egg:cooked', 'tomato:chopped', 'onion:chopped'],
+    cat: [[5, 6]],
+    catAwake: [[5, 6], [5, 5], [5, 4], [5, 5]],
+    bot: { rounds: 10, noise: 54 },
+  },
 ];
 
 // 9 nights: each map three times, with a lighter-sleeping roommate each time round.
@@ -108,6 +150,7 @@ function rulesFor(def, upgrades = []) {
   const rules = { ...NOISE };
   if (upgrades.includes('slippers')) rules.creak = 2;
   if (upgrades.includes('quietFridge')) rules.fridge = 2;
+  if (upgrades.includes('dogBone')) rules.dog = 0;
   return {
     rules,
     maxNoise: Math.round(def.maxNoise * (upgrades.includes('earplugs') ? 1.15 : 1)),
@@ -143,6 +186,8 @@ function stepNoiseForTile(level, x, y, rules = NOISE) {
   if (door && Math.abs(door.x - x) + Math.abs(door.y - y) <= 2) n += rules.nearDoor;
   return n;
 }
+
+const nextToDog = (level, p) => [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => tileAt(level, p.x + dx, p.y + dy) === 'G');
 
 // ---- Game ----------------------------------------------------------------
 
@@ -247,6 +292,7 @@ function resolveRound(game) {
         P[s].x = to[s].x; P[s].y = to[s].y;
         const n = stepNoiseForTile(level, P[s].x, P[s].y, game.rules);
         game.noise += n;
+        if (nextToDog(level, P[s]) && game.rules.dog) { game.noise += game.rules.dog; game.stats.growls = (game.stats.growls || 0) + 1; events.push({ type: 'growl', who: s }); }
         if (tileAt(level, P[s].x, P[s].y) === '~') { game.stats.creaks[s]++; events.push({ type: 'creak', who: s }); }
       }
     }
@@ -358,4 +404,4 @@ function viewFor(game, seat) {
   };
 }
 
-module.exports = { INGREDIENTS, MAPS, LEVELS, TIERS, NOISE, rulesFor, STEPS_PER_ROUND, createSneakGame, act, viewFor, validatePlan, tileAt, walkable, findChar };
+module.exports = { INGREDIENTS, MAPS, nextToDog, LEVELS, TIERS, NOISE, rulesFor, STEPS_PER_ROUND, createSneakGame, act, viewFor, validatePlan, tileAt, walkable, findChar };

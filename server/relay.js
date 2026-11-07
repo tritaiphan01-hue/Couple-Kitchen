@@ -56,6 +56,10 @@ const DISH_TYPES = {
   chao:     { en: 'Cháo',       vi: 'Cháo' },
   goi:      { en: 'Gỏi',        vi: 'Gỏi' },
   kho:      { en: 'Kho',        vi: 'Món kho' },
+  hutieu:   { en: 'Hủ Tiếu',    vi: 'Hủ tiếu' },
+  banhxeo:  { en: 'Bánh Xèo',   vi: 'Bánh xèo' },
+  banhcanh: { en: 'Bánh Canh',  vi: 'Bánh canh' },
+  comtam:   { en: 'Cơm Tấm',    vi: 'Cơm tấm' },
 };
 
 // Each round only some ingredients are "at the market", so the pantry fits on a phone

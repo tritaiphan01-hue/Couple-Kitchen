@@ -96,6 +96,8 @@ const MAP_SOLUTIONS = [
   { errands: [['F', 'T'], ['S', 'T']] },
   { errands: [['S', 'O', 'T'], ['F', 'O', 'T']] },
   { errands: [['S', 'T', 'F', 'O', 'T'], ['F', 'B', 'T']] },
+  { errands: [['S', 'O', 'T'], ['F', 'O', 'T', 'F', 'T']] },
+  { errands: [['S', 'B', 'T', 'S', 'B', 'T'], ['F', 'O', 'T']] },
 ];
 const SOLUTIONS = {};
 sneak.LEVELS.forEach((_, i) => { SOLUTIONS[i + 1] = MAP_SOLUTIONS[i % MAP_SOLUTIONS.length]; });

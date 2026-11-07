@@ -51,12 +51,15 @@ const DISHES = {
   cheeseburger: { emoji: '🧀', name: { en: 'Cheeseburger', vi: 'Burger phô mai' }, comps: ['bread:raw', 'beef:cooked', 'cheese:raw', 'tomato:chopped'] },
   canhchua:     { emoji: '🍲', name: { en: 'Sour Soup', vi: 'Canh chua' }, comps: ['fish:chopped_cooked', 'pineapple:chopped', 'chili:chopped'] },
   boluclac:     { emoji: '🥘', name: { en: 'Shaking Beef', vi: 'Bò lúc lắc' }, comps: ['beef:chopped_cooked', 'cucumber:chopped'] },
+  hutieu:       { emoji: '🍤', name: { en: 'Hủ Tiếu', vi: 'Hủ tiếu tôm thịt' }, comps: ['noodles:cooked', 'pork:cooked', 'shrimp:cooked'] },
+  banhxeo:      { emoji: '🥞', name: { en: 'Bánh Xèo', vi: 'Bánh xèo' }, comps: ['egg:cooked', 'shrimp:cooked', 'lettuce:chopped'] },
+  comchien:     { emoji: '🥡', name: { en: 'Fried Rice', vi: 'Cơm chiên' }, comps: ['rice:cooked', 'egg:cooked', 'onion:chopped_cooked'] },
 };
 
 const LEVEL_DISHES = [
   ['salad', 'eggtoast', 'burger', 'banhmi', 'comtrung', 'phobo'],
-  ['burger', 'banhmi', 'comtrung', 'phobo', 'fries', 'pasta', 'goicuon', 'comtam'],
-  ['fries', 'pasta', 'goicuon', 'comtam', 'soup', 'cheeseburger', 'canhchua', 'boluclac'],
+  ['burger', 'banhmi', 'comtrung', 'phobo', 'fries', 'pasta', 'goicuon', 'comtam', 'hutieu', 'banhxeo'],
+  ['fries', 'pasta', 'goicuon', 'comtam', 'soup', 'cheeseburger', 'canhchua', 'boluclac', 'hutieu', 'banhxeo', 'comchien'],
 ];
 
 const LEVELS = [

@@ -7,7 +7,7 @@ A cozy co-op cooking game for two, played online from your phones.
 |---|---|---|
 | 🍷 **Recipe Relay** | ✅ playable | Turn-based. Each of you holds half of a secret recipe card. Take turns adding one ingredient or action to a shared pot; after 8 steps the dish is judged against both cards (0–3 ⭐). |
 | 🔥 **Split Kitchen** | ✅ playable | Real-time. 🔥 Cook has the pantry + 2 burners, 🔪 Prep has the chopping board, plate and serve bell. Pass food across a shared counter to fill orders before customers leave. 3 levels (earn ⭐ to unlock the next); food burns if you forget it; the clock pauses if a phone disconnects. |
-| 🌙 **Midnight Snack** | ✅ playable | Co-op stealth puzzle. Both see a dark kitchen grid; each round you each plan up to 3 steps (walk / use the fridge, shelf, stove, board or table / wait), lock in, and move at the same time. Creaky boards, the cat and bumping into each other make noise; open the fridge together to keep it quiet. Get the snack on the table before the roommate wakes up. 3 nights. |
+| 🌙 **Midnight Snack** | ✅ playable | Co-op stealth puzzle. Both see a dark kitchen grid; each round you each plan up to 3 steps (walk / use the fridge, shelf, stove, board or table / wait), lock in, and move at the same time. Creaky boards, the cat and bumping into each other make noise; open the fridge together to keep it quiet. Get the snack on the table before the roommate wakes up. 15 nights. |
 
 ## Coins, shop & upgrades
 - Every finished game pays coins into **one shared 💰 wallet** that both partners earn into and either can spend.
@@ -15,7 +15,7 @@ A cozy co-op cooking game for two, played online from your phones.
 - **🛒 Shop** (from the lobby):
   - Kitchen: upgrades that make modes easier (third burner, sharp knife, non-stick pans, friendly bell, recipe notebook, soft slippers, quiet fridge, earplugs, cat treats) and decor (cherry blossom, garden, seaside).
   - My chef: your own chef's colour, hat and glasses. Your partner sees your look everywhere.
-- Difficulty keeps climbing so upgrades stay useful: Split Kitchen has **10 levels**, Midnight Snack **9 nights** (each map with a lighter and lighter sleeper), and Recipe Relay gets more clues and fewer steps as the evening goes on.
+- Difficulty keeps climbing so upgrades stay useful: Split Kitchen has **10 levels**, Midnight Snack **15 nights** (5 maps, each with a lighter and lighter sleeper; two maps have a sleeping dog 🐕 that growls if you stop next to it), and Recipe Relay gets more clues and fewer steps as the evening goes on.
 - **Progress is saved on each phone** (localStorage): coins, upgrades, decor, unlocked levels and your chef's look. When you open a kitchen or join your partner's, the saved copies are merged (bigger wallet wins, owned items and stars combine), so a server restart or redeploy doesn't lose anything. Reconnecting to the same kitchen never merges again, so spent coins can't come back. Clearing the browser's site data on *both* phones resets progress.
 - `START_COINS=500 npm start` gives new kitchens 500 coins for testing.
 
