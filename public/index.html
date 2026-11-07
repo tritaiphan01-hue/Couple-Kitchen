@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#FFF4E6" />
+  <title>Couple's Kitchen</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍳</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-mode="home">
+  <div id="app">
+
+    <!-- HOME -->
+    <section id="screen-home" class="screen active">
+      <div class="home-hero">
+        <div class="steam"><span></span><span></span><span></span></div>
+        <div class="hero-pot">🍲</div>
+        <h1>Couple's<br />Kitchen</h1>
+        <p class="tagline">Cook together, from anywhere 💕</p>
+      </div>
+
+      <div class="card">
+        <label class="field">
+          <span>Your chef name</span>
+          <input id="name-input" maxlength="16" placeholder="e.g. Tri" autocomplete="nickname" />
+        </label>
+        <button id="create-btn" class="btn btn-primary">🍳 Open a new kitchen</button>
+        <div class="divider"><span>or join your partner</span></div>
+        <div class="join-row">
+          <input id="code-input" maxlength="4" placeholder="CODE" autocapitalize="characters" autocomplete="off" spellcheck="false" />
+          <button id="join-btn" class="btn btn-secondary">Join</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOBBY -->
+    <section id="screen-lobby" class="screen">
+      <header class="topbar">
+        <button class="icon-btn" id="leave-btn" aria-label="Leave kitchen">←</button>
+        <div class="topbar-title">The Kitchen</div>
+        <button class="icon-btn" id="mute-btn" aria-label="Toggle sound">🔊</button>
+      </header>
+
+      <div class="fridge">
+        <div class="magnet-label">Kitchen code</div>
+        <div class="magnet-code" id="lobby-code">····</div>
+        <button id="share-btn" class="btn btn-small">📤 Send to partner</button>
+      </div>
+
+      <div class="chefs" id="lobby-chefs"></div>
+      <p class="lobby-hint" id="lobby-hint"></p>
+
+      <h2 class="section-title">Pick tonight's mode</h2>
+      <div class="modes">
+        <button class="mode-card mode-relay" data-mode="relay">
+          <div class="mode-emoji">🍷</div>
+          <div class="mode-text">
+            <div class="mode-name">Recipe Relay</div>
+            <div class="mode-desc">Chill · secret recipe cards, take turns adding to the pot</div>
+          </div>
+        </button>
+        <button class="mode-card mode-rush" data-mode="rush" disabled>
+          <div class="mode-emoji">🔥</div>
+          <div class="mode-text">
+            <div class="mode-name">Split Kitchen <span class="soon">soon</span></div>
+            <div class="mode-desc">Rush · real-time, each of you runs half the kitchen</div>
+          </div>
+        </button>
+        <button class="mode-card mode-sneak" data-mode="sneak" disabled>
+          <div class="mode-emoji">🌙</div>
+          <div class="mode-text">
+            <div class="mode-name">Midnight Snack <span class="soon">soon</span></div>
+            <div class="mode-desc">Sneak · plan quiet moves, don't wake the roommate</div>
+          </div>
+        </button>
+      </div>
+
+      <div class="recap" id="lobby-recap"></div>
+    </section>
+
+    <!-- RECIPE RELAY -->
+    <section id="screen-relay" class="screen">
+      <header class="topbar">
+        <button class="icon-btn" id="relay-back" aria-label="Back to lobby">←</button>
+        <div class="topbar-title" id="relay-title">Mystery Dish</div>
+        <button class="icon-btn" id="relay-mute" aria-label="Toggle sound">🔊</button>
+      </header>
+
+      <div class="turn-banner" id="turn-banner"></div>
+      <div class="turn-dots" id="turn-dots"></div>
+
+      <div class="pot-area">
+        <div class="pot-steam"><span></span><span></span><span></span></div>
+        <div class="pot-contents" id="pot-contents"></div>
+        <div class="pot" aria-hidden="true">
+          <div class="pot-rim"></div>
+          <div class="pot-body"></div>
+          <div class="pot-handle left"></div>
+          <div class="pot-handle right"></div>
+        </div>
+        <div class="last-move" id="last-move">The pot is empty. Let's cook!</div>
+      </div>
+
+      <div class="secret-card" id="secret-card">
+        <div class="secret-head">
+          <span>🔒 Your secret card</span>
+          <span class="secret-tip">hold to peek</span>
+        </div>
+        <ul id="secret-list"></ul>
+      </div>
+
+      <div class="controls">
+        <div class="pantry" id="pantry"></div>
+        <div class="actions" id="actions"></div>
+      </div>
+
+      <div class="reactions" id="reactions"></div>
+    </section>
+
+    <!-- RESULTS -->
+    <section id="screen-results" class="screen">
+      <header class="topbar">
+        <div class="icon-btn-spacer"></div>
+        <div class="topbar-title">Taste test!</div>
+        <div class="icon-btn-spacer"></div>
+      </header>
+      <div class="results-hero">
+        <div class="results-bowl" id="results-bowl"></div>
+        <div class="results-stars" id="results-stars"></div>
+        <h2 class="results-name" id="results-name"></h2>
+        <p class="results-score" id="results-score"></p>
+      </div>
+      <div class="results-cards" id="results-cards"></div>
+      <div class="results-target" id="results-target"></div>
+      <div class="results-buttons">
+        <button class="btn btn-primary" id="next-btn">🍲 Cook another</button>
+        <button class="btn btn-ghost" id="results-lobby-btn">Back to kitchen</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="banner" id="conn-banner" hidden></div>
+  <div class="toast" id="toast" hidden></div>
+  <div class="float-layer" id="float-layer" aria-hidden="true"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
