@@ -28,15 +28,21 @@ test('two players can create, join, play and reconnect', async t => {
 
   // A third chef is turned away.
   const c = connect(url, { transports: ['websocket'] });
-  assert.match((await emit(c, 'room:join', { code: created.code, playerId: 'pc' })).error, /two chefs/);
+  assert.strictEqual((await emit(c, 'room:join', { code: created.code, playerId: 'pc' })).error, 'room_full');
   c.close();
 
   assert.ok((await emit(a, 'mode:start', { mode: 'rush' })).error);
+
+  // Switch to the Vietnamese pantry; both players see it.
+  const packed = nextState(b, s => s.room.pack === 'vietnam');
+  a.emit('room:pack', { pack: 'vietnam' });
+  await packed;
   const started = nextState(b, s => s.game);
   await emit(a, 'mode:start', { mode: 'relay' });
   const sb = await started;
   assert.strictEqual(sb.game.myCard.length, 3);
   assert.strictEqual(sb.game.cards, undefined);
+  assert.strictEqual(sb.game.pack, 'vietnam');
 
   const players = [a, b];
   let last;
@@ -49,7 +55,8 @@ test('two players can create, join, play and reconnect', async t => {
     last = await wait;
   }
   assert.strictEqual(last.game.phase, 'results');
-  assert.ok(last.game.dishName.length > 0);
+  assert.deepStrictEqual(last.game.dish.chefs, [0, 1]);   // nobody added ingredients → shared credit
+  assert.strictEqual(last.game.dish.pack, 'vietnam');
   assert.strictEqual(last.room.stats.rounds, 1);
 
   // Refresh / reconnect: a fresh socket with the same playerId gets the seat back.

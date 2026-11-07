@@ -3,44 +3,91 @@
 // that dish, and splits them between the two players. Players take turns adding
 // one ingredient or doing one action to a shared pot. At the end the pot is
 // judged against every clue.
+//
+// Everything sent to clients is language-neutral data (ids, tags, numbers).
+// Each phone turns it into English or Vietnamese text itself, so the two
+// partners can even play in different languages.
 
-const INGREDIENTS = {
-  carrot:   { emoji: '🥕', name: 'Carrot',   tags: ['veg', 'orange', 'sweet'] },
-  garlic:   { emoji: '🧄', name: 'Garlic',   tags: ['veg', 'white', 'savory'] },
-  onion:    { emoji: '🧅', name: 'Onion',    tags: ['veg', 'white', 'savory'] },
-  chili:    { emoji: '🌶️', name: 'Chili',    tags: ['veg', 'red', 'spicy'] },
-  tomato:   { emoji: '🍅', name: 'Tomato',   tags: ['veg', 'red', 'sour'] },
-  mushroom: { emoji: '🍄', name: 'Mushroom', tags: ['veg', 'brown', 'savory'] },
-  potato:   { emoji: '🥔', name: 'Potato',   tags: ['veg', 'brown', 'starchy'] },
-  corn:     { emoji: '🌽', name: 'Corn',     tags: ['veg', 'yellow', 'sweet'] },
-  lemon:    { emoji: '🍋', name: 'Lemon',    tags: ['fruit', 'yellow', 'sour'] },
-  cheese:   { emoji: '🧀', name: 'Cheese',   tags: ['dairy', 'yellow', 'savory'] },
-  milk:     { emoji: '🥛', name: 'Milk',     tags: ['dairy', 'white', 'sweet'] },
-  egg:      { emoji: '🥚', name: 'Egg',      tags: ['protein', 'white', 'savory'] },
-  chicken:  { emoji: '🍗', name: 'Chicken',  tags: ['protein', 'meat', 'brown', 'savory'] },
-  shrimp:   { emoji: '🦐', name: 'Shrimp',   tags: ['protein', 'seafood', 'orange', 'savory'] },
-  rice:     { emoji: '🍚', name: 'Rice',     tags: ['grain', 'white', 'starchy'] },
-  noodles:  { emoji: '🍜', name: 'Noodles',  tags: ['grain', 'yellow', 'starchy'] },
-  honey:    { emoji: '🍯', name: 'Honey',    tags: ['sweet', 'yellow'] },
-  herbs:    { emoji: '🌿', name: 'Herbs',    tags: ['herb', 'green', 'fresh'] },
+const ing = (emoji, en, vi, tags) => ({ emoji, name: { en, vi }, tags });
+
+const PACKS = {
+  western: {
+    emoji: '🍝',
+    ingredients: {
+      carrot:   ing('🥕', 'Carrot',   'Cà rốt',     ['veg', 'orange', 'sweet']),
+      garlic:   ing('🧄', 'Garlic',   'Tỏi',        ['veg', 'white', 'savory']),
+      onion:    ing('🧅', 'Onion',    'Hành tây',   ['veg', 'white', 'savory']),
+      chili:    ing('🌶️', 'Chili',    'Ớt',         ['veg', 'red', 'spicy']),
+      tomato:   ing('🍅', 'Tomato',   'Cà chua',    ['veg', 'red', 'sour']),
+      mushroom: ing('🍄', 'Mushroom', 'Nấm',        ['veg', 'brown', 'savory']),
+      potato:   ing('🥔', 'Potato',   'Khoai tây',  ['veg', 'brown', 'starchy']),
+      corn:     ing('🌽', 'Corn',     'Bắp',        ['veg', 'yellow', 'sweet']),
+      lemon:    ing('🍋', 'Lemon',    'Chanh vàng', ['fruit', 'yellow', 'sour']),
+      cheese:   ing('🧀', 'Cheese',   'Phô mai',    ['dairy', 'yellow', 'savory']),
+      milk:     ing('🥛', 'Milk',     'Sữa',        ['dairy', 'white', 'sweet']),
+      egg:      ing('🥚', 'Egg',      'Trứng',      ['protein', 'white', 'savory']),
+      chicken:  ing('🍗', 'Chicken',  'Gà',         ['protein', 'meat', 'brown', 'savory']),
+      shrimp:   ing('🦐', 'Shrimp',   'Tôm',        ['protein', 'seafood', 'orange', 'savory']),
+      rice:     ing('🍚', 'Rice',     'Cơm',        ['grain', 'white', 'starchy']),
+      noodles:  ing('🍝', 'Pasta',    'Mì Ý',       ['grain', 'yellow', 'starchy']),
+      honey:    ing('🍯', 'Honey',    'Mật ong',    ['sweet', 'yellow']),
+      herbs:    ing('🌿', 'Herbs',    'Rau thơm',   ['herb', 'green', 'fresh']),
+    },
+    dishTypes: {
+      soup:    { en: 'Soup',     vi: 'Súp' },
+      stew:    { en: 'Stew',     vi: 'Món hầm' },
+      stirfry: { en: 'Stir-fry', vi: 'Món xào' },
+      curry:   { en: 'Curry',    vi: 'Cà ri' },
+      bowl:    { en: 'Bowl',     vi: 'Tô' },
+      risotto: { en: 'Risotto',  vi: 'Cơm Ý' },
+      pasta:   { en: 'Pasta',    vi: 'Mì Ý' },
+      pie:     { en: 'Pot Pie',  vi: 'Bánh nướng' },
+    },
+  },
+  vietnam: {
+    emoji: '🇻🇳',
+    ingredients: {
+      nuoc_mam:  ing('🧴', 'Fish sauce',    'Nước mắm',   ['seafood', 'brown', 'savory']),
+      rau_thom:  ing('🌿', 'Fresh herbs',   'Rau thơm',   ['herb', 'green', 'fresh']),
+      sa:        ing('🌾', 'Lemongrass',    'Sả',         ['herb', 'green', 'fresh']),
+      ot:        ing('🌶️', 'Chili',         'Ớt',         ['veg', 'red', 'spicy']),
+      toi:       ing('🧄', 'Garlic',        'Tỏi',        ['veg', 'white', 'savory']),
+      hanh:      ing('🧅', 'Shallot',       'Hành',       ['veg', 'white', 'savory']),
+      ca_chua:   ing('🍅', 'Tomato',        'Cà chua',    ['veg', 'red', 'sour']),
+      thom:      ing('🍍', 'Pineapple',     'Thơm',       ['fruit', 'yellow', 'sweet', 'sour']),
+      chanh:     ing('🍋', 'Lime',          'Chanh',      ['fruit', 'yellow', 'sour']),
+      nam:       ing('🍄', 'Mushroom',      'Nấm',        ['veg', 'brown', 'savory']),
+      rau_muong: ing('🥬', 'Water spinach', 'Rau muống',  ['veg', 'green', 'fresh']),
+      trung:     ing('🥚', 'Egg',           'Trứng',      ['protein', 'white', 'savory']),
+      tom:       ing('🦐', 'Shrimp',        'Tôm',        ['protein', 'seafood', 'orange', 'savory']),
+      ca:        ing('🐟', 'Fish',          'Cá',         ['protein', 'seafood', 'white', 'savory']),
+      thit_heo:  ing('🥓', 'Pork',          'Thịt heo',   ['protein', 'meat', 'red', 'savory']),
+      thit_bo:   ing('🥩', 'Beef',          'Thịt bò',    ['protein', 'meat', 'red', 'savory']),
+      bun:       ing('🍜', 'Vermicelli',    'Bún',        ['grain', 'white', 'starchy']),
+      com:       ing('🍚', 'Rice',          'Cơm',        ['grain', 'white', 'starchy']),
+    },
+    dishTypes: {
+      pho:      { en: 'Phở',       vi: 'Phở' },
+      canhchua: { en: 'Canh Chua', vi: 'Canh chua' },
+      bun:      { en: 'Bún',       vi: 'Bún' },
+      comchien: { en: 'Fried Rice', vi: 'Cơm chiên' },
+      lau:      { en: 'Lẩu',       vi: 'Lẩu' },
+      chao:     { en: 'Cháo',      vi: 'Cháo' },
+      goi:      { en: 'Gỏi',       vi: 'Gỏi' },
+      kho:      { en: 'Kho',       vi: 'Món kho' },
+    },
+  },
 };
+const DEFAULT_PACK = 'western';
 
 const ACTIONS = {
-  stir:   { emoji: '🥄', name: 'Stir', past: 'stirred' },
-  boil:   { emoji: '♨️', name: 'Boil', past: 'boiled' },
-  salt:   { emoji: '🧂', name: 'Salt', past: 'salted' },
+  stir: { emoji: '🥄', name: { en: 'Stir', vi: 'Khuấy' } },
+  boil: { emoji: '♨️', name: { en: 'Boil', vi: 'Đun' } },
+  salt: { emoji: '🧂', name: { en: 'Salt', vi: 'Nêm' } },
 };
 
-const TAG_LABELS = {
-  veg: 'a veggie', fruit: 'a fruit', dairy: 'dairy', protein: 'protein', meat: 'meat',
-  seafood: 'seafood', grain: 'a grain', herb: 'herbs',
-  orange: 'something orange', white: 'something white', red: 'something red',
-  brown: 'something brown', yellow: 'something yellow', green: 'something green',
-  sweet: 'something sweet', savory: 'something savory', spicy: 'something SPICY',
-  sour: 'something sour', starchy: 'something starchy', fresh: 'something fresh',
-};
-
-const DISH_TYPES = ['Soup', 'Stew', 'Stir-fry', 'Curry', 'Bowl', 'Hotpot', 'Risotto', 'Broth'];
+// Tags that make good "NO …" clues when the target dish lacks them.
+const NEGATABLE_TAGS = ['dairy', 'meat', 'seafood', 'spicy', 'sweet', 'sour', 'grain', 'protein', 'fruit', 'herb'];
 const TOTAL_TURNS = 8;
 const CLUES_PER_PLAYER = 3;
 
@@ -53,68 +100,55 @@ function shuffle(arr, rand = Math.random) {
   return a;
 }
 
-function tagsOf(ingredientIds) {
+function packOf(id) { return PACKS[id] || PACKS[DEFAULT_PACK]; }
+
+function tagsOf(ingredientIds, pack) {
   const counts = {};
-  for (const id of ingredientIds) for (const t of INGREDIENTS[id].tags) counts[t] = (counts[t] || 0) + 1;
+  for (const id of ingredientIds) for (const t of pack.ingredients[id].tags) counts[t] = (counts[t] || 0) + 1;
   return counts;
 }
 
 // ---- Clue checking -------------------------------------------------------
 
-function checkClue(clue, pot) {
+function checkClue(clue, pot, pack = PACKS[DEFAULT_PACK]) {
   const ings = pot.filter(s => s.kind === 'ingredient').map(s => s.id);
   const acts = pot.filter(s => s.kind === 'action').map(s => s.id);
-  const tags = tagsOf(ings);
+  const tags = tagsOf(ings, pack);
+  const last = pot[pot.length - 1];
   switch (clue.type) {
-    case 'hasTag':     return (tags[clue.tag] || 0) >= 1;
-    case 'noTag':      return !tags[clue.tag];
-    case 'minTag':     return (tags[clue.tag] || 0) >= clue.n;
-    case 'hasIng':     return ings.includes(clue.id);
-    case 'noIng':      return !ings.includes(clue.id);
-    case 'hasAction':  return acts.includes(clue.id);
-    case 'noAction':   return !acts.includes(clue.id);
-    case 'maxIngs':    return ings.length <= clue.n;
-    case 'minIngs':    return ings.length >= clue.n;
-    case 'lastIs':     return pot.length > 0 && pot[pot.length - 1].kind === 'action' && pot[pot.length - 1].id === clue.id;
-    default:           return false;
-  }
-}
-
-function clueText(clue) {
-  switch (clue.type) {
-    case 'hasTag':    return `has ${TAG_LABELS[clue.tag]}`;
-    case 'noTag':     return `NO ${TAG_LABELS[clue.tag].replace(/^(a |something )/, '')}`;
-    case 'minTag':    return `at least ${clue.n}× ${TAG_LABELS[clue.tag].replace(/^(a |something )/, '')}`;
-    case 'hasIng':    return `must include ${INGREDIENTS[clue.id].emoji} ${INGREDIENTS[clue.id].name.toLowerCase()}`;
-    case 'noIng':     return `absolutely no ${INGREDIENTS[clue.id].emoji} ${INGREDIENTS[clue.id].name.toLowerCase()}`;
-    case 'hasAction': return `must be ${ACTIONS[clue.id].past} at some point`;
-    case 'noAction':  return `never ${ACTIONS[clue.id].name.toLowerCase()} it`;
-    case 'maxIngs':   return `no more than ${clue.n} ingredients`;
-    case 'minIngs':   return `at least ${clue.n} ingredients`;
-    case 'lastIs':    return `finish with a ${ACTIONS[clue.id].emoji} ${ACTIONS[clue.id].name.toLowerCase()}`;
-    default:          return '???';
+    case 'hasTag':    return (tags[clue.tag] || 0) >= 1;
+    case 'noTag':     return !tags[clue.tag];
+    case 'minTag':    return (tags[clue.tag] || 0) >= clue.n;
+    case 'hasIng':    return ings.includes(clue.id);
+    case 'noIng':     return !ings.includes(clue.id);
+    case 'hasAction': return acts.includes(clue.id);
+    case 'noAction':  return !acts.includes(clue.id);
+    case 'maxIngs':   return ings.length <= clue.n;
+    case 'minIngs':   return ings.length >= clue.n;
+    case 'lastIs':    return !!last && last.kind === 'action' && last.id === clue.id;
+    default:          return false;
   }
 }
 
 // ---- Recipe generation ---------------------------------------------------
 
 // Build every clue that is TRUE for the target dish, then pick a varied set.
-function candidateClues(targetIngs, targetActs, lastAction) {
-  const tags = tagsOf(targetIngs);
-  const allIngIds = Object.keys(INGREDIENTS);
+function candidateClues(pack, targetIngs, targetActs, lastAction, rand) {
+  const tags = tagsOf(targetIngs, pack);
+  const packIds = Object.keys(pack.ingredients);
+  const packTags = tagsOf(packIds, pack);
   const out = [];
 
   for (const [tag, n] of Object.entries(tags)) {
     out.push({ type: 'hasTag', tag, w: 3 });
     if (n >= 2) out.push({ type: 'minTag', tag, n: 2, w: 4 });
   }
-  for (const tag of Object.keys(TAG_LABELS)) {
-    if (!tags[tag] && ['dairy', 'meat', 'seafood', 'spicy', 'sweet', 'sour', 'grain', 'protein'].includes(tag)) {
-      out.push({ type: 'noTag', tag, w: 3 });
-    }
+  // Only forbid things the pantry actually contains, otherwise the clue is free.
+  for (const tag of NEGATABLE_TAGS) {
+    if (!tags[tag] && packTags[tag]) out.push({ type: 'noTag', tag, w: 3 });
   }
   for (const id of targetIngs) out.push({ type: 'hasIng', id, w: 2 });
-  for (const id of shuffle(allIngIds.filter(i => !targetIngs.includes(i))).slice(0, 3)) {
+  for (const id of shuffle(packIds.filter(i => !targetIngs.includes(i)), rand).slice(0, 3)) {
     out.push({ type: 'noIng', id, w: 1 });
   }
   for (const id of Object.keys(ACTIONS)) {
@@ -135,8 +169,9 @@ function clueKey(c) {
   return c.type;
 }
 
-function generateRecipe(rand = Math.random) {
-  const ingIds = Object.keys(INGREDIENTS);
+function generateRecipe(packId = DEFAULT_PACK, rand = Math.random) {
+  const pack = packOf(packId);
+  const ingIds = Object.keys(pack.ingredients);
   const nIngs = 4 + Math.floor(rand() * 2);          // 4–5 ingredients
   const targetIngs = shuffle(ingIds, rand).slice(0, nIngs);
   const nActs = TOTAL_TURNS - nIngs >= 3 ? 2 : 1;     // fits in 8 turns with room to spare
@@ -144,7 +179,7 @@ function generateRecipe(rand = Math.random) {
   const lastAction = targetActs[targetActs.length - 1];
 
   // Weighted shuffle: higher-weight clues tend to come first, with some randomness.
-  const pool = candidateClues(targetIngs, targetActs, lastAction)
+  const pool = candidateClues(pack, targetIngs, targetActs, lastAction, rand)
     .map(c => ({ c, score: c.w + rand() * 3 }))
     .sort((a, b) => b.score - a.score)
     .map(x => x.c);
@@ -157,9 +192,10 @@ function generateRecipe(rand = Math.random) {
     usedKeys.add(k);
     chosen.push(c);
   }
-  const clues = shuffle(chosen, rand).map(({ w, ...c }) => ({ ...c, text: clueText(c) }));
+  const clues = shuffle(chosen, rand).map(({ w, ...c }) => c);
+  const dishKeys = Object.keys(pack.dishTypes);
   return {
-    dishType: DISH_TYPES[Math.floor(rand() * DISH_TYPES.length)],
+    dishType: dishKeys[Math.floor(rand() * dishKeys.length)],
     target: { ingredients: targetIngs, actions: targetActs },
     cards: [clues.slice(0, CLUES_PER_PLAYER), clues.slice(CLUES_PER_PLAYER)],
   };
@@ -167,17 +203,18 @@ function generateRecipe(rand = Math.random) {
 
 // ---- Game state ----------------------------------------------------------
 
-function createRelayGame(round = 1, rand = Math.random) {
-  const recipe = generateRecipe(rand);
+function createRelayGame(round = 1, packId = DEFAULT_PACK, rand = Math.random) {
+  const pack = PACKS[packId] ? packId : DEFAULT_PACK;
   return {
     mode: 'relay',
+    pack,
     round,
     phase: 'playing',            // 'playing' | 'results'
     turn: 0,                     // 0..TOTAL_TURNS-1
     totalTurns: TOTAL_TURNS,
     starter: (round - 1) % 2,    // alternate who goes first each round
     pot: [],                     // [{kind, id, by}]
-    recipe,
+    recipe: generateRecipe(pack, rand),
     result: null,
   };
 }
@@ -186,16 +223,16 @@ function currentPlayer(game) {
   return (game.starter + game.turn) % 2;
 }
 
-// Returns an error string, or null on success.
+// Returns an error code (translated on the client), or null on success.
 function applyMove(game, seat, move) {
-  if (game.phase !== 'playing') return 'The round is over.';
-  if (currentPlayer(game) !== seat) return "It's not your turn.";
-  if (!move || (move.kind !== 'ingredient' && move.kind !== 'action')) return 'Invalid move.';
+  if (game.phase !== 'playing') return 'round_over';
+  if (currentPlayer(game) !== seat) return 'not_your_turn';
+  if (!move || (move.kind !== 'ingredient' && move.kind !== 'action')) return 'invalid_move';
   if (move.kind === 'ingredient') {
-    if (!INGREDIENTS[move.id]) return 'Unknown ingredient.';
-    if (game.pot.some(s => s.kind === 'ingredient' && s.id === move.id)) return "That's already in the pot.";
-  } else if (!ACTIONS[move.id]) {
-    return 'Unknown action.';
+    if (!Object.prototype.hasOwnProperty.call(packOf(game.pack).ingredients, move.id)) return 'unknown_ingredient';
+    if (game.pot.some(s => s.kind === 'ingredient' && s.id === move.id)) return 'already_in_pot';
+  } else if (!Object.prototype.hasOwnProperty.call(ACTIONS, move.id)) {
+    return 'unknown_action';
   }
   game.pot.push({ kind: move.kind, id: move.id, by: seat });
   game.turn++;
@@ -204,7 +241,8 @@ function applyMove(game, seat, move) {
 }
 
 function finishRound(game) {
-  const checks = game.recipe.cards.map(card => card.map(c => checkClue(c, game.pot)));
+  const pack = packOf(game.pack);
+  const checks = game.recipe.cards.map(card => card.map(c => checkClue(c, game.pot, pack)));
   const met = checks.flat().filter(Boolean).length;
   const total = checks.flat().length;
   const stars = met === total ? 3 : met >= total - 1 ? 2 : met >= total - 3 ? 1 : 0;
@@ -212,23 +250,29 @@ function finishRound(game) {
   game.result = { checks, met, total, stars };
 }
 
-function dishName(game, names) {
+// The pieces of the dish's name; each client words it in its own language.
+function dishInfo(game) {
+  const pack = packOf(game.pack);
   const ings = game.pot.filter(s => s.kind === 'ingredient').map(s => s.id);
-  const tags = tagsOf(ings);
+  const tags = tagsOf(ings, pack);
   const flavor = ['spicy', 'sweet', 'sour', 'savory'].sort((a, b) => (tags[b] || 0) - (tags[a] || 0))[0];
-  const flavorWord = tags[flavor] ? flavor[0].toUpperCase() + flavor.slice(1) : 'Mystery';
   // Credit whoever added the most ingredients (ties → both).
   const by = [0, 0];
   game.pot.forEach(s => { if (s.kind === 'ingredient') by[s.by]++; });
-  const chef = by[0] === by[1] ? `${names[0]} & ${names[1]}'s` : `${names[by[0] > by[1] ? 0 : 1]}'s`;
-  const star = ings[0] ? INGREDIENTS[ings[0]].name : '';
-  return `${chef} ${flavorWord} ${star} ${game.recipe.dishType}`.replace(/\s+/g, ' ').trim();
+  return {
+    chefs: by[0] === by[1] ? [0, 1] : [by[0] > by[1] ? 0 : 1],
+    flavor: tags[flavor] ? flavor : null,
+    star: ings[0] || null,
+    dishType: game.recipe.dishType,
+    pack: game.pack,
+  };
 }
 
 // What a given seat is allowed to see. The partner's card stays hidden until results.
-function viewFor(game, seat, names) {
+function viewFor(game, seat) {
   const v = {
     mode: 'relay',
+    pack: game.pack,
     round: game.round,
     phase: game.phase,
     turn: game.turn,
@@ -241,13 +285,13 @@ function viewFor(game, seat, names) {
   if (game.phase === 'results') {
     v.cards = game.recipe.cards;
     v.result = game.result;
-    v.dishName = dishName(game, names);
+    v.dish = dishInfo(game);
     v.target = game.recipe.target;
   }
   return v;
 }
 
 module.exports = {
-  INGREDIENTS, ACTIONS, TOTAL_TURNS,
-  createRelayGame, applyMove, viewFor, checkClue, generateRecipe, currentPlayer,
+  PACKS, ACTIONS, TOTAL_TURNS, DEFAULT_PACK,
+  createRelayGame, applyMove, viewFor, checkClue, generateRecipe, currentPlayer, dishInfo,
 };

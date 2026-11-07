@@ -7,11 +7,12 @@ const relay = require('./relay');
 const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;   // forget rooms idle for a day
 const MODES = { relay };                    // 'rush' and 'sneak' arrive later
+const PACKS_OK = new Set(Object.keys(relay.PACKS));
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
-app.get('/api/catalog', (_req, res) => res.json({ ingredients: relay.INGREDIENTS, actions: relay.ACTIONS }));
+app.get('/api/catalog', (_req, res) => res.json({ packs: relay.PACKS, actions: relay.ACTIONS }));
 
 const server = http.createServer(app);
 const io = new Server(server);
@@ -48,6 +49,7 @@ function publicRoom(room, seat) {
     seat,
     screen: room.game ? 'game' : 'lobby',
     players: room.players.map(p => (p ? { name: p.name, connected: p.connected } : null)),
+    pack: room.pack,
     stats: room.stats,
   };
 }
@@ -56,7 +58,7 @@ function broadcast(room) {
   room.lastActive = Date.now();
   room.players.forEach((p, seat) => {
     if (!p || !p.socketId) return;
-    const game = room.game ? MODES[room.game.mode].viewFor(room.game, seat, names(room)) : null;
+    const game = room.game ? MODES[room.game.mode].viewFor(room.game, seat) : null;
     io.to(p.socketId).emit('state', { room: publicRoom(room, seat), game });
   });
 }
@@ -65,17 +67,17 @@ function recordRound(room) {
   const g = room.game;
   if (!g || g.phase !== 'results' || g.recorded) return;
   g.recorded = true;
-  const view = relay.viewFor(g, 0, names(room));
   room.stats.rounds++;
   room.stats.stars += g.result.stars;
-  room.stats.dishes.push({ name: view.dishName, stars: g.result.stars });
+  // Store chef *names* with the dish so the recap still reads right if someone leaves.
+  room.stats.dishes.push({ dish: relay.dishInfo(g), names: names(room), stars: g.result.stars });
   if (room.stats.dishes.length > 20) room.stats.dishes.shift();
 }
 
 function attach(socket, room, seat) {
   const p = room.players[seat];
   // If this player was connected on another tab, that tab loses its seat.
-  if (p.socketId && p.socketId !== socket.id) io.to(p.socketId).emit('kicked', 'You opened the game somewhere else.');
+  if (p.socketId && p.socketId !== socket.id) io.to(p.socketId).emit('kicked', 'opened_elsewhere');
   p.socketId = socket.id;
   p.connected = true;
   socket.data.code = room.code;
@@ -84,13 +86,14 @@ function attach(socket, room, seat) {
 }
 
 io.on('connection', socket => {
-  socket.on('room:create', ({ name, playerId } = {}, ack = () => {}) => {
-    if (!playerId) return ack({ error: 'Missing player id.' });
+  socket.on('room:create', ({ name, playerId, pack } = {}, ack = () => {}) => {
+    if (!playerId) return ack({ error: 'missing_id' });
     const code = newCode();
     const room = {
       code,
       players: [{ id: playerId, name: cleanName(name, 'Honey'), socketId: null, connected: false }, null],
       game: null,
+      pack: PACKS_OK.has(pack) ? pack : relay.DEFAULT_PACK,
       stats: { rounds: 0, stars: 0, dishes: [] },
       lastActive: Date.now(),
     };
@@ -103,11 +106,11 @@ io.on('connection', socket => {
   socket.on('room:join', ({ code, name, playerId } = {}, ack = () => {}) => {
     code = String(code || '').toUpperCase().trim();
     const room = rooms.get(code);
-    if (!room) return ack({ error: `No kitchen found with code ${code || '—'}.` });
+    if (!room) return ack({ error: 'no_room' });
     let seat = seatOf(room, playerId);
     if (seat === -1) {
       seat = room.players.findIndex(p => p === null);
-      if (seat === -1) return ack({ error: 'That kitchen already has two chefs.' });
+      if (seat === -1) return ack({ error: 'room_full' });
       room.players[seat] = { id: playerId, name: cleanName(name, 'Plum'), socketId: null, connected: false };
     } else if (name) {
       room.players[seat].name = cleanName(name, room.players[seat].name);
@@ -140,17 +143,17 @@ io.on('connection', socket => {
 
   socket.on('mode:start', ({ mode } = {}, ack = () => {}) => {
     const room = rooms.get(socket.data.code);
-    if (!room) return ack({ error: 'Not in a kitchen.' });
-    if (!MODES[mode]) return ack({ error: 'That mode is still cooking. Coming soon!' });
-    if (!room.players[0] || !room.players[1]) return ack({ error: 'Wait for your partner to join first.' });
-    room.game = relay.createRelayGame(room.stats.rounds + 1);
+    if (!room) return ack({ error: 'no_room' });
+    if (!MODES[mode]) return ack({ error: 'mode_soon' });
+    if (!room.players[0] || !room.players[1]) return ack({ error: 'need_partner' });
+    room.game = relay.createRelayGame(room.stats.rounds + 1, room.pack);
     ack({ ok: true });
     broadcast(room);
   });
 
   socket.on('relay:move', (move, ack = () => {}) => {
     const room = rooms.get(socket.data.code);
-    if (!room || !room.game || room.game.mode !== 'relay') return ack({ error: 'No game running.' });
+    if (!room || !room.game || room.game.mode !== 'relay') return ack({ error: 'no_game' });
     const err = relay.applyMove(room.game, socket.data.seat, move);
     if (err) return ack({ error: err });
     recordRound(room);
@@ -161,7 +164,15 @@ io.on('connection', socket => {
   socket.on('relay:next', () => {
     const room = rooms.get(socket.data.code);
     if (!room || !room.game || room.game.phase !== 'results') return;
-    room.game = relay.createRelayGame(room.stats.rounds + 1);
+    room.game = relay.createRelayGame(room.stats.rounds + 1, room.pack);
+    broadcast(room);
+  });
+
+  // Choose the pantry: Western kitchen or Vietnamese kitchen. Applies to the next dish.
+  socket.on('room:pack', ({ pack } = {}) => {
+    const room = rooms.get(socket.data.code);
+    if (!room || !PACKS_OK.has(pack) || room.pack === pack) return;
+    room.pack = pack;
     broadcast(room);
   });
 

@@ -21,7 +21,7 @@
   --shadow: 0 3px 0 rgba(74, 52, 40, .18);
 
   --radius: 20px;
-  --font-head: 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --font-head: 'Baloo 2', 'Nunito', system-ui, sans-serif;
   --font-body: 'Nunito', system-ui, sans-serif;
 }
 
@@ -96,7 +96,7 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .icon-btn:active { transform: scale(.9); }
 
 /* ───────── Home ───────── */
-.home-hero { text-align: center; padding: 48px 0 24px; position: relative; }
+.home-hero { text-align: center; padding: 16px 0 24px; position: relative; }
 .hero-pot { font-size: 84px; line-height: 1; animation: bob 3s ease-in-out infinite; }
 @keyframes bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
 .home-hero h1 { font-size: 2.6rem; line-height: 1; margin: 12px 0 8px; letter-spacing: -.5px; }
@@ -146,6 +146,9 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 
 /* ───────── Topbar ───────── */
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
+.topbar-right { display: flex; }
+.topbar-right .icon-btn { width: 40px; }
+.topbar-home { padding-bottom: 0; }
 .topbar-title { font-size: 1.25rem; font-weight: 600; text-align: center; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ───────── Lobby ───────── */
@@ -178,6 +181,11 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .dot.off { background: #C9B6A4; }
 .lobby-hint { text-align: center; color: var(--fg-soft); margin: 4px 0 14px; min-height: 1.4em; }
 
+.pack-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 14px; }
+.pack-label { font-family: var(--font-head); font-size: 1.1rem; font-weight: 600; }
+.pack-toggle { display: flex; background: var(--surface-2); border: 3px solid var(--cocoa); border-radius: 99px; padding: 3px; gap: 2px; }
+.pack-btn { border: 0; background: transparent; border-radius: 99px; padding: 7px 12px; font-size: .9rem; font-weight: 800; white-space: nowrap; transition: background .2s ease; }
+.pack-btn[aria-checked="true"] { background: var(--butter); box-shadow: 0 2px 0 var(--cocoa); }
 .section-title { font-size: 1.2rem; margin: 8px 0 10px; }
 .modes { display: flex; flex-direction: column; gap: 12px; }
 .mode-card {
@@ -213,7 +221,7 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .turn-dots i.done.p1 { background: var(--plum); }
 .turn-dots i.now { outline: 3px solid var(--fg); outline-offset: 1px; }
 
-.pot-area { position: relative; height: 136px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-top: 4px; }
+.pot-area { position: relative; height: 128px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-top: 4px; }
 .pot-steam { position: absolute; top: 44px; z-index: 0; left: 0; right: 0; color: #fff; }
 .pot { position: relative; width: 170px; height: 74px; }
 .pot-rim { position: absolute; top: 0; left: -8px; right: -8px; height: 22px; border-radius: 12px; background: #9AA5AE; border: 3px solid #2B2320; }
@@ -236,6 +244,7 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .pot-contents .ing.p0 { --ring: var(--honey); }
 .pot-contents .ing.p1 { --ring: var(--plum); }
 .last-move { margin-top: 6px; font-size: .9rem; color: var(--fg-soft); text-align: center; min-height: 1.3em; }
+.last-move.picking { color: var(--butter); font-weight: 800; font-size: 1rem; }
 
 .secret-card {
   margin: 6px 0 8px; padding: 10px 14px;
@@ -266,8 +275,8 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .pantry button:disabled, .actions button:disabled { opacity: .3; cursor: default; }
 .pantry button.selected, .actions button.selected { background: var(--butter); border-color: var(--cocoa); }
 .actions { display: grid; grid-template-columns: repeat(3, 1fr) 1.4fr; gap: 6px; }
-.actions button { aspect-ratio: auto; height: 48px; font-size: 1rem; display: flex; gap: 6px; align-items: center; justify-content: center; }
-.actions button .e { font-size: 1.3rem; }
+.actions button { aspect-ratio: auto; height: 48px; font-size: .95rem; display: flex; gap: 3px; padding: 0 4px; white-space: nowrap; overflow: hidden; align-items: center; justify-content: center; }
+.actions button .e { font-size: 1.15rem; }
 .actions .add-btn { background: var(--tomato); color: #fff; border-color: var(--cocoa); font-family: var(--font-head); font-size: 1.05rem; }
 .picked-name { text-align: center; font-size: .85rem; color: var(--fg-soft); min-height: 1.2em; }
 

@@ -1,6 +1,7 @@
 /* Couple's Kitchen — client */
 (() => {
   'use strict';
+  const { t } = I18N;
 
   // ───────── Utilities ─────────
   const $ = sel => document.querySelector(sel);
@@ -8,7 +9,6 @@
     const n = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
       if (k === 'class') n.className = v;
-      else if (k === 'dataset') Object.assign(n.dataset, v);
       else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
       else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v);
     }
@@ -22,6 +22,7 @@
   };
   const SEAT_COLORS = [['#F5B83D', '#D99413'], ['#9B6BC4', '#774A9E']];
   const SEAT_FALLBACK = ['Honey', 'Plum'];
+  const errText = code => (t('err.' + code) === 'err.' + code ? code : t('err.' + code));
 
   let playerId = store.get('playerId');
   if (!playerId) {
@@ -36,11 +37,11 @@
     if (muted) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const t = actx.currentTime + delay;
+      const at = actx.currentTime + delay;
       const o = actx.createOscillator(), g = actx.createGain();
-      o.type = type; o.frequency.setValueAtTime(freq, t);
-      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + dur);
+      o.type = type; o.frequency.setValueAtTime(freq, at);
+      g.gain.setValueAtTime(vol, at); g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+      o.connect(g).connect(actx.destination); o.start(at); o.stop(at + dur);
     } catch { /* audio unavailable */ }
   }
   const sfx = {
@@ -53,18 +54,25 @@
     err: () => tone(160, 0.18, 'square', 0.06),
   };
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* ignore */ } };
-  function syncMuteButtons() { document.querySelectorAll('#mute-btn, #relay-mute').forEach(b => (b.textContent = muted ? '🔇' : '🔊')); }
-  document.querySelectorAll('#mute-btn, #relay-mute').forEach(b => b.addEventListener('click', () => {
+  function syncMuteButtons() { document.querySelectorAll('.mute-btn').forEach(b => (b.textContent = muted ? '🔇' : '🔊')); }
+  document.querySelectorAll('.mute-btn').forEach(b => b.addEventListener('click', () => {
     muted = !muted; store.set('muted', muted); syncMuteButtons(); sfx.tap();
   }));
   syncMuteButtons();
+
+  // ───────── Language ─────────
+  I18N.setLang(I18N.detectLang());
+  document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', () => {
+    I18N.setLang(I18N.lang === 'vi' ? 'en' : 'vi');
+    sfx.tap();
+    if (state) render(true);
+  }));
 
   // ───────── Chef blob SVG ─────────
   function chefSVG(seat, mood = 'happy') {
     const [c, d] = SEAT_COLORS[seat];
     const mouth = {
       happy: '<path d="M40 60 Q50 69 60 60" stroke="#4A3428" stroke-width="4" fill="none" stroke-linecap="round"/>',
-      wow: '<ellipse cx="50" cy="62" rx="5" ry="6" fill="#4A3428"/>',
       sleepy: '<path d="M43 62 H57" stroke="#4A3428" stroke-width="4" stroke-linecap="round"/>',
     }[mood];
     const eyes = mood === 'sleepy'
@@ -84,18 +92,21 @@
 
   // ───────── Screens ─────────
   function show(screen, mode) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-' + screen));
+    const target = $('#screen-' + screen);
+    if (!target.classList.contains('active')) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s === target));
+      window.scrollTo(0, 0);
+    }
     document.body.dataset.mode = mode || screen;
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = document.body.dataset.mode === 'relay' ? '#3A2820' : '#FFF4E6';
-    window.scrollTo(0, 0);
   }
 
   let toastTimer;
   function toast(msg, ms = 2600) {
-    const t = $('#toast');
-    t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), ms);
+    const box = $('#toast');
+    box.textContent = msg; box.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (box.hidden = true), ms);
   }
   function banner(msg) { const b = $('#conn-banner'); b.textContent = msg || ''; b.hidden = !msg; }
 
@@ -113,8 +124,8 @@
 
   // ───────── Socket ─────────
   const socket = io({ transports: ['websocket', 'polling'] });
-  let catalog = { ingredients: {}, actions: {} };
-  fetch('/api/catalog').then(r => r.json()).then(c => { catalog = c; if (state) render(); }).catch(() => {});
+  let catalog = null;
+  fetch('/api/catalog').then(r => r.json()).then(c => { catalog = c; I18N.setCatalog(c); if (state) render(true); }).catch(() => {});
 
   let state = null;          // last {room, game} from server
   let prev = null;           // previous state, for detecting changes
@@ -130,8 +141,8 @@
       });
     }
   });
-  socket.on('disconnect', () => banner('🔌 Reconnecting…'));
-  socket.on('kicked', msg => { store.del('room'); state = null; toast(msg); show('home'); });
+  socket.on('disconnect', () => banner(t('reconnecting')));
+  socket.on('kicked', code => { store.del('room'); state = null; toast(errText(code)); show('home'); });
   socket.on('state', s => { prev = state; state = s; store.set('room', s.room.code); render(); });
   socket.on('react', ({ emoji }) => { floatEmoji(emoji, emoji === '❤️' ? 9 : 4); sfx.heart(); buzz(20); });
 
@@ -150,17 +161,19 @@
   }
   $('#create-btn').addEventListener('click', () => {
     sfx.tap();
-    socket.emit('room:create', { name: myName(), playerId }, res => {
-      if (res.error) return toast(res.error);
+    // Vietnamese speakers start with the Vietnamese pantry; either player can switch in the lobby.
+    const pack = I18N.lang === 'vi' ? 'vietnam' : 'western';
+    socket.emit('room:create', { name: myName(), playerId, pack }, res => {
+      if (res.error) return toast(errText(res.error));
       history.replaceState(null, '', '?room=' + res.code);
     });
   });
   function join() {
     sfx.tap();
     const code = codeInput.value.trim();
-    if (code.length !== 4) { sfx.err(); return toast('Kitchen codes have 4 letters.'); }
+    if (code.length !== 4) { sfx.err(); return toast(t('codeLength')); }
     socket.emit('room:join', { code, name: myName(), playerId }, res => {
-      if (res.error) { sfx.err(); return toast(res.error); }
+      if (res.error) { sfx.err(); return toast(errText(res.error)); }
       history.replaceState(null, '', '?room=' + res.code);
     });
   }
@@ -169,7 +182,7 @@
 
   // ───────── Lobby ─────────
   $('#leave-btn').addEventListener('click', () => {
-    if (!confirm('Leave this kitchen? Your partner will need a new code.')) return;
+    if (!confirm(t('lobby.leaveConfirm'))) return;
     socket.emit('room:leave');
     store.del('room'); state = null;
     history.replaceState(null, '', location.pathname);
@@ -177,112 +190,112 @@
   });
   $('#share-btn').addEventListener('click', async () => {
     const url = `${location.origin}${location.pathname}?room=${state.room.code}`;
-    const text = `Come cook with me 🍳 Kitchen code: ${state.room.code}`;
+    const text = t('lobby.shareText', { code: state.room.code });
     try {
-      if (navigator.share) await navigator.share({ title: "Couple's Kitchen", text, url });
-      else { await navigator.clipboard.writeText(`${text}\n${url}`); toast('Invite link copied 📋'); }
+      if (navigator.share) await navigator.share({ title: document.title, text, url });
+      else { await navigator.clipboard.writeText(`${text}\n${url}`); toast(t('lobby.copied')); }
     } catch { /* user cancelled */ }
   });
+  document.querySelectorAll('.pack-btn').forEach(btn => btn.addEventListener('click', () => {
+    sfx.tap(); buzz(8);
+    socket.emit('room:pack', { pack: btn.dataset.pack });
+  }));
   document.querySelectorAll('.mode-card').forEach(btn => btn.addEventListener('click', () => {
     sfx.tap();
-    socket.emit('mode:start', { mode: btn.dataset.mode }, res => { if (res && res.error) { sfx.err(); toast(res.error); } });
+    socket.emit('mode:start', { mode: btn.dataset.mode }, res => { if (res && res.error) { sfx.err(); toast(errText(res.error)); } });
   }));
+
+  function playerName(seat, room = state.room) {
+    const p = room.players[seat];
+    return p ? p.name : SEAT_FALLBACK[seat];
+  }
 
   function renderLobby() {
     const { room } = state;
-    const code = $('#lobby-code');
-    code.replaceChildren(...room.code.split('').map(ch => el('span', {}, ch)));
+    $('#lobby-code').replaceChildren(...room.code.split('').map(ch => el('span', {}, ch)));
 
-    const chefs = $('#lobby-chefs');
-    chefs.replaceChildren(...room.players.map((p, seat) => {
+    $('#lobby-chefs').replaceChildren(...room.players.map((p, seat) => {
       const box = el('div', { class: 'chef' + (p ? '' : ' waiting') });
-      box.innerHTML = chefSVG(seat, p ? (p.connected ? 'happy' : 'sleepy') : 'sleepy');
+      box.innerHTML = chefSVG(seat, p && p.connected ? 'happy' : 'sleepy');
       box.append(
-        el('div', { class: 'chef-name' }, p ? p.name + (seat === room.seat ? ' (you)' : '') : 'Waiting…'),
+        el('div', { class: 'chef-name' }, p ? `${p.name}${seat === room.seat ? ' ' + t('lobby.you') : ''}` : t('lobby.waiting')),
         el('div', { class: 'chef-status' },
           el('span', { class: 'dot' + (p && p.connected ? '' : ' off') }),
-          p ? (p.connected ? 'in the kitchen' : 'stepped out') : 'not here yet'),
+          p ? (p.connected ? t('lobby.inKitchen') : t('lobby.steppedOut')) : t('lobby.notHere')),
       );
       return box;
     }));
 
     const partner = room.players[1 - room.seat];
-    $('#lobby-hint').textContent = !partner
-      ? 'Send your partner the code to start cooking 💌'
-      : !partner.connected ? `${partner.name} stepped out. You can still start a dish.` : 'Both chefs ready! Pick a mode 👇';
+    $('#lobby-hint').textContent = !partner ? t('lobby.hintAlone')
+      : !partner.connected ? t('lobby.hintAway', { name: partner.name }) : t('lobby.hintReady');
     document.querySelectorAll('.mode-card[data-mode="relay"]').forEach(b => (b.disabled = !partner));
+    document.querySelectorAll('.pack-btn').forEach(b => b.setAttribute('aria-checked', String(b.dataset.pack === room.pack)));
 
     const s = room.stats;
     const recap = $('#lobby-recap');
-    if (s.rounds) {
+    recap.replaceChildren();
+    if (s.rounds && catalog) {
       const best = s.dishes.slice().sort((a, b) => b.stars - a.stars)[0];
-      recap.innerHTML = '';
       recap.append(
-        'Tonight: ', el('b', {}, `${s.rounds} dish${s.rounds > 1 ? 'es' : ''}`), ' · ',
-        el('b', {}, `${s.stars} ⭐`), el('br'),
-        'Best: ', el('b', {}, `${best.name} ${'⭐'.repeat(best.stars) || '(0⭐)'}`),
+        t('lobby.recapTonight') + ' ', el('b', {}, t('lobby.recapDishes', s.rounds)), ' · ', el('b', {}, `${s.stars} ⭐`), el('br'),
+        t('lobby.recapBest') + ' ', el('b', {}, `${I18N.dishName(best.dish, best.names)} ${'⭐'.repeat(best.stars) || '(0⭐)'}`),
       );
-    } else recap.textContent = '';
+    }
   }
 
   // ───────── Recipe Relay ─────────
   $('#relay-back').addEventListener('click', () => {
-    if (confirm('Leave this dish and go back to the kitchen? It ends the round for both of you.')) socket.emit('room:lobby');
+    if (confirm(t('relay.leaveConfirm'))) socket.emit('room:lobby');
   });
 
   const secretCard = $('#secret-card');
   secretCard.addEventListener('click', () => { cardHidden = !cardHidden; sfx.tap(); renderSecret(); });
 
-  // Reactions bar
   $('#reactions').replaceChildren(...['❤️', '😏', '🤔', '👍', '👎', '😂'].map(e =>
-    el('button', { 'aria-label': 'Send ' + e, onclick: () => { socket.emit('react', { emoji: e }); floatEmoji(e, 3); sfx.heart(); buzz(10); } }, e)));
+    el('button', { 'aria-label': e, onclick: () => { socket.emit('react', { emoji: e }); floatEmoji(e, 3); sfx.heart(); buzz(10); } }, e)));
 
-  function playerName(seat) {
-    const p = state.room.players[seat];
-    return p ? p.name : SEAT_FALLBACK[seat];
-  }
   function stepLabel(step) {
-    if (step.kind === 'ingredient') { const i = catalog.ingredients[step.id]; return i ? `${i.emoji} ${i.name.toLowerCase()}` : step.id; }
-    const a = catalog.actions[step.id];
-    return a ? `${a.emoji} ${a.past}` : step.id;
+    return step.kind === 'ingredient'
+      ? `${I18N.ingEmoji(step.id)} ${I18N.lower(I18N.ingName(step.id))}`
+      : I18N.actPast(step.id);
   }
 
   function renderSecret() {
-    const g = state.game;
     secretCard.classList.toggle('hidden', cardHidden);
-    $('.secret-tip').textContent = cardHidden ? 'tap to peek 👀' : 'tap to hide';
-    $('#secret-list').replaceChildren(...g.myCard.map(c => el('li', {}, c.text)));
+    $('.secret-tip').textContent = cardHidden ? t('relay.peek') : t('relay.hide');
+    $('#secret-list').replaceChildren(...state.game.myCard.map(c => el('li', {}, I18N.clueText(c))));
   }
 
-  function renderRelay() {
+  // `quiet` re-renders (language switch, catalog load) skip sounds and animations.
+  function renderRelay(quiet = false) {
     const g = state.game, room = state.room;
     const mine = g.currentSeat === room.seat;
-    const ingIds = Object.keys(catalog.ingredients);
+    const pack = catalog.packs[g.pack];
+    const ingIds = Object.keys(pack.ingredients);
     const inPot = new Set(g.pot.filter(s => s.kind === 'ingredient').map(s => s.id));
     if (selection && selection.kind === 'ingredient' && inPot.has(selection.id)) selection = null;
     if (!mine) selection = null;
 
-    $('#relay-title').textContent = `Mystery ${g.dishType} #${g.round}`;
+    $('#relay-title').textContent = t('relay.title', { dish: I18N.dishTypeName(g.pack, g.dishType), round: g.round });
     const bannerEl = $('#turn-banner');
     bannerEl.classList.toggle('mine', mine);
-    const left = g.totalTurns - g.turn;
     bannerEl.textContent = mine
-      ? `Your turn ${room.seat === 0 ? '💛' : '💜'} · ${left} step${left > 1 ? 's' : ''} left`
-      : `${playerName(g.currentSeat)} is thinking… 🤔`;
+      ? t('relay.yourTurn', room.seat === 0 ? '💛' : '💜', g.totalTurns - g.turn)
+      : t('relay.theirTurn', { name: playerName(g.currentSeat) });
 
-    // Turn dots, coloured by who will play / has played each step.
     $('#turn-dots').replaceChildren(...Array.from({ length: g.totalTurns }, (_, i) => {
       const step = g.pot[i];
       return el('i', { class: [step ? 'done p' + step.by : '', i === g.turn ? 'now' : ''].join(' ') });
     }));
 
-    // Pot contents: ingredients float in a loose pile.
-    const potBox = $('#pot-contents');
-    const prevLen = prev && prev.game && prev.game.mode === 'relay' && prev.game.round === g.round ? prev.game.pot.length : 0;
+    // Pot contents: ingredients float in a loose pile; only new ones drop in.
+    const sameRound = prev && prev.game && prev.game.mode === 'relay' && prev.game.round === g.round;
+    const prevLen = quiet ? g.pot.length : sameRound ? prev.game.pot.length : 0;
     const ings = g.pot.filter(s => s.kind === 'ingredient');
-    potBox.replaceChildren(...ings.map((s, i) => {
+    $('#pot-contents').replaceChildren(...ings.map((s, i) => {
       const spot = [[50, 40], [24, 50], [76, 48], [38, 14], [64, 18], [12, 22], [88, 24], [50, 0]][i % 8];
-      const n = el('span', { class: 'ing p' + s.by }, catalog.ingredients[s.id] ? catalog.ingredients[s.id].emoji : '?');
+      const n = el('span', { class: 'ing p' + s.by }, I18N.ingEmoji(s.id));
       n.style.left = `calc(${spot[0]}% - 15px)`; n.style.top = spot[1] + 'px';
       if (g.pot.indexOf(s) < prevLen) n.style.animation = 'simmer 3s ease-in-out infinite';
       n.style.animationDelay = (i * 0.3) + 's';
@@ -292,47 +305,50 @@
     if (last && g.pot.length > prevLen && last.kind === 'action') {
       const pot = $('.pot'); pot.classList.remove('stir'); void pot.offsetWidth; pot.classList.add('stir');
     }
-    $('#last-move').textContent = last
-      ? `${last.by === room.seat ? 'You' : playerName(last.by)} ${last.kind === 'ingredient' ? 'added' : 'did'} ${stepLabel(last)}`
-      : 'The pot is empty. Let’s cook!';
+    let lastText = t('relay.empty');
+    if (last) {
+      const me = last.by === room.seat, name = playerName(last.by);
+      lastText = last.kind === 'ingredient'
+        ? t(me ? 'relay.youAdded' : 'relay.theyAdded', { name, thing: stepLabel(last) })
+        : t(me ? 'relay.youDid' : 'relay.theyDid', { name, action: stepLabel(last) });
+    }
+    // While choosing, show what the tapped emoji actually is (🌾 = Sả / Lemongrass).
+    const lm = $('#last-move');
+    lm.classList.toggle('picking', !!selection);
+    lm.textContent = selection
+      ? `👉 ${selection.kind === 'ingredient' ? I18N.ingEmoji(selection.id) + ' ' + I18N.ingName(selection.id) : I18N.actEmoji(selection.id) + ' ' + I18N.actName(selection.id)}`
+      : lastText;
 
     renderSecret();
 
-    // Pantry
-    $('#pantry').replaceChildren(...ingIds.map(id => {
-      const ing = catalog.ingredients[id];
-      return el('button', {
-        'aria-label': ing.name, title: ing.name,
-        class: selection && selection.id === id ? 'selected' : '',
-        disabled: !mine || inPot.has(id),
-        onclick: () => { selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); renderRelay(); },
-      }, ing.emoji);
-    }));
+    $('#pantry').replaceChildren(...ingIds.map(id => el('button', {
+      'aria-label': I18N.ingName(id), title: I18N.ingName(id),
+      class: selection && selection.id === id ? 'selected' : '',
+      disabled: !mine || inPot.has(id),
+      onclick: () => { selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); renderRelay(true); },
+    }, I18N.ingEmoji(id))));
 
-    // Actions + confirm
-    const actionBtns = Object.entries(catalog.actions).map(([id, a]) => el('button', {
+    const actionBtns = Object.keys(catalog.actions).map(id => el('button', {
       class: selection && selection.id === id ? 'selected' : '',
       disabled: !mine,
-      onclick: () => { selection = { kind: 'action', id }; sfx.tap(); buzz(8); renderRelay(); },
-    }, el('span', { class: 'e' }, a.emoji), a.name));
-    const addLabel = !selection ? 'Pick one'
-      : selection.kind === 'ingredient' ? `Add ${catalog.ingredients[selection.id].emoji}`
-      : `${catalog.actions[selection.id].name} it`;
-    const addBtn = el('button', { class: 'add-btn', disabled: !mine || !selection, onclick: commitMove }, mine ? addLabel : 'Wait…');
-    $('#actions').replaceChildren(...actionBtns, addBtn);
+      onclick: () => { selection = { kind: 'action', id }; sfx.tap(); buzz(8); renderRelay(true); },
+    }, el('span', { class: 'e' }, I18N.actEmoji(id)), I18N.actName(id)));
+    const addLabel = !mine ? t('relay.wait')
+      : !selection ? t('relay.pick')
+      : selection.kind === 'ingredient' ? t('relay.add', { emoji: I18N.ingEmoji(selection.id) })
+      : t('relay.doIt', { action: I18N.actName(selection.id) });
+    $('#actions').replaceChildren(...actionBtns, el('button', { class: 'add-btn', disabled: !mine || !selection, onclick: commitMove }, addLabel));
 
-    // Cues when the turn passes to me.
-    const wasMine = prev && prev.game && prev.game.mode === 'relay' && prev.game.currentSeat === room.seat && prev.game.round === g.round;
+    if (quiet) return;
+    const wasMine = sameRound && prev.game.currentSeat === room.seat;
     if (mine && !wasMine) { sfx.yourTurn(); buzz([30, 40, 30]); }
     else if (g.pot.length > prevLen) sfx.plop();
   }
 
   function commitMove() {
     if (!selection) return;
-    const move = selection;
-    socket.emit('relay:move', move, res => {
-      if (res && res.error) { sfx.err(); toast(res.error); }
-      else buzz(15);
+    socket.emit('relay:move', selection, res => {
+      if (res && res.error) { sfx.err(); toast(errText(res.error)); } else buzz(15);
     });
     selection = null;
   }
@@ -341,24 +357,22 @@
   $('#next-btn').addEventListener('click', () => { sfx.tap(); cardHidden = true; socket.emit('relay:next'); });
   $('#results-lobby-btn').addEventListener('click', () => { sfx.tap(); socket.emit('room:lobby'); });
 
-  function renderResults() {
+  function renderResults(quiet = false) {
     const g = state.game, room = state.room;
-    $('#results-bowl').replaceChildren(...g.pot.filter(s => s.kind === 'ingredient').map(s => el('span', {}, catalog.ingredients[s.id] ? catalog.ingredients[s.id].emoji : '?')));
+    const names = [playerName(0), playerName(1)];
+    $('#results-bowl').replaceChildren(...g.pot.filter(s => s.kind === 'ingredient').map(s => el('span', { title: I18N.ingName(s.id) }, I18N.ingEmoji(s.id))));
     $('#results-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < g.result.stars ? '' : 'off' }, '⭐')));
-    $('#results-name').textContent = g.dishName;
-    const verdict = ['Hmm… the cat ate it 🐈', 'Edible! Kinda 😅', 'So tasty! 😋', 'Chef’s kiss! 👩‍🍳💋'][g.result.stars];
-    $('#results-score').textContent = `${g.result.met}/${g.result.total} clues matched · ${verdict}`;
+    $('#results-name').textContent = I18N.dishName(g.dish, names);
+    $('#results-score').textContent = t('results.score', { met: g.result.met, total: g.result.total, verdict: t('results.verdicts')[g.result.stars] });
 
     $('#results-cards').replaceChildren(...[0, 1].map(seat => el('div', { class: 'result-card p' + seat },
-      el('h3', {}, `${seat === room.seat ? 'Your' : playerName(seat) + '’s'} card`),
-      el('ul', {}, ...g.cards[seat].map((c, i) => el('li', { class: g.result.checks[seat][i] ? 'ok' : 'no' }, c.text))),
+      el('h3', {}, seat === room.seat ? t('results.yourCard') : t('results.theirCard', { name: names[seat] })),
+      el('ul', {}, ...g.cards[seat].map((c, i) => el('li', { class: g.result.checks[seat][i] ? 'ok' : 'no' }, I18N.clueText(c)))),
     )));
-    const t = g.target;
-    $('#results-target').textContent = 'The secret recipe was: ' +
-      [...t.ingredients.map(id => catalog.ingredients[id] ? catalog.ingredients[id].emoji : id),
-       ...t.actions.map(id => catalog.actions[id] ? catalog.actions[id].emoji : id)].join(' ') +
-      ' (any dish that matches every clue gets 3 stars)';
+    const items = [...g.target.ingredients.map(I18N.ingEmoji), ...g.target.actions.map(I18N.actEmoji)].join(' ');
+    $('#results-target').textContent = t('results.secret', { items });
 
+    if (quiet) return;
     const justFinished = !(prev && prev.game && prev.game.phase === 'results' && prev.game.round === g.round);
     if (justFinished) {
       sfx.ding(); buzz([40, 60, 40]);
@@ -367,23 +381,24 @@
   }
 
   // ───────── Main render ─────────
-  function render() {
+  function render(quiet = false) {
     if (!state) return show('home');
     const { room, game } = state;
 
-    // Partner presence banner
     const partner = room.players[1 - room.seat];
     const prevPartner = prev && prev.room.players[1 - prev.room.seat];
-    if (partner && !prevPartner && prev) { sfx.join(); buzz(30); toast(`${partner.name} joined the kitchen! 💕`); }
-    banner(socket.connected ? (partner && !partner.connected && room.screen === 'game' ? `💤 ${partner.name} stepped out… they can come back anytime` : '') : '🔌 Reconnecting…');
+    if (!quiet && partner && !prevPartner && prev) { sfx.join(); buzz(30); toast(t('joined', { name: partner.name })); }
+    banner(!socket.connected ? t('reconnecting')
+      : partner && !partner.connected && room.screen === 'game' ? t('partnerAway', { name: partner.name }) : '');
 
     if (!game) { show('lobby'); renderLobby(); return; }
+    if (!catalog) return;  // wait for ingredient data
     if (game.mode === 'relay') {
-      if (game.phase === 'results') { show('results', 'relay'); renderResults(); }
+      if (game.phase === 'results') { show('results', 'relay'); renderResults(quiet); }
       else {
         if (!prev || !prev.game || prev.game.round !== game.round) cardHidden = true;
-        if (!$('#screen-relay').classList.contains('active')) show('relay', 'relay');
-        renderRelay();
+        show('relay', 'relay');
+        renderRelay(quiet);
       }
     }
   }

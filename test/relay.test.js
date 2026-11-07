@@ -20,9 +20,12 @@ function playTarget(game) {
   }
 }
 
-test('every generated recipe is solvable for 3 stars', () => {
-  for (let i = 0; i < 500; i++) {
-    const g = relay.createRelayGame(1 + (i % 2));
+test('every generated recipe is solvable for 3 stars, in both pantries', () => {
+  for (let i = 0; i < 1000; i++) {
+    const pack = i % 2 ? 'vietnam' : 'western';
+    const g = relay.createRelayGame(1 + (i % 2), pack);
+    assert.strictEqual(g.pack, pack);
+    for (const id of g.recipe.target.ingredients) assert.ok(relay.PACKS[pack].ingredients[id], id);
     assert.strictEqual(g.recipe.cards[0].length, 3);
     assert.strictEqual(g.recipe.cards[1].length, 3);
     playTarget(g);
@@ -34,7 +37,7 @@ test('every generated recipe is solvable for 3 stars', () => {
 test('turn order is enforced and alternates', () => {
   const g = relay.createRelayGame(1);
   assert.strictEqual(relay.currentPlayer(g), 0);
-  assert.match(relay.applyMove(g, 1, { kind: 'action', id: 'stir' }), /not your turn/);
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'action', id: 'stir' }), 'not_your_turn');
   assert.strictEqual(relay.applyMove(g, 0, { kind: 'action', id: 'stir' }), null);
   assert.strictEqual(relay.currentPlayer(g), 1);
   // Round 2: the other player starts.
@@ -44,14 +47,19 @@ test('turn order is enforced and alternates', () => {
 test('rejects duplicate and unknown ingredients', () => {
   const g = relay.createRelayGame(1);
   assert.strictEqual(relay.applyMove(g, 0, { kind: 'ingredient', id: 'carrot' }), null);
-  assert.match(relay.applyMove(g, 1, { kind: 'ingredient', id: 'carrot' }), /already/);
-  assert.match(relay.applyMove(g, 1, { kind: 'ingredient', id: 'pizza' }), /Unknown/);
-  assert.match(relay.applyMove(g, 1, { kind: 'dance' }), /Invalid/);
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'carrot' }), 'already_in_pot');
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'pizza' }), 'unknown_ingredient');
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'toString' }), 'unknown_ingredient');
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'dance' }), 'invalid_move');
+  // Ingredients from the other pantry are rejected.
+  assert.strictEqual(relay.applyMove(g, 1, { kind: 'ingredient', id: 'nuoc_mam' }), 'unknown_ingredient');
+  const vn = relay.createRelayGame(1, 'vietnam');
+  assert.strictEqual(relay.applyMove(vn, 0, { kind: 'ingredient', id: 'nuoc_mam' }), null);
 });
 
 test("a player's view never leaks the partner's card before results", () => {
   const g = relay.createRelayGame(1);
-  const v = relay.viewFor(g, 0, ['A', 'B']);
+  const v = relay.viewFor(g, 0);
   assert.deepStrictEqual(v.myCard, g.recipe.cards[0]);
   assert.strictEqual(v.cards, undefined);
   assert.strictEqual(v.target, undefined);
