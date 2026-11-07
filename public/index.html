@@ -80,10 +80,10 @@
             <div class="mode-desc" data-i18n="mode.rush.desc"></div>
           </div>
         </button>
-        <button class="mode-card mode-sneak" data-mode="sneak" disabled>
+        <button class="mode-card mode-sneak" data-mode="sneak">
           <div class="mode-emoji">🌙</div>
           <div class="mode-text">
-            <div class="mode-name"><span data-i18n="mode.sneak.name">Midnight Snack</span> <span class="soon" data-i18n="soon">soon</span></div>
+            <div class="mode-name"><span data-i18n="mode.sneak.name">Midnight Snack</span></div>
             <div class="mode-desc" data-i18n="mode.sneak.desc"></div>
           </div>
         </button>
@@ -167,6 +167,55 @@
         <button class="btn btn-primary" id="rr-next"></button>
         <button class="btn btn-secondary" id="rr-retry" data-i18n="rush.retry">🔁 Play again</button>
         <button class="btn btn-ghost" id="rr-lobby" data-i18n="results.lobby">Back to kitchen</button>
+      </div>
+    </section>
+
+    <!-- MIDNIGHT SNACK -->
+    <section id="screen-sneak" class="screen">
+      <header class="topbar">
+        <button class="icon-btn" id="sneak-back" aria-label="Back to lobby">←</button>
+        <div class="rush-status">
+          <span id="sneak-night"></span>
+          <span class="sneak-round" id="sneak-round"></span>
+        </div>
+        <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+      </header>
+      <div class="noise">
+        <span class="noise-face" id="noise-face">😴</span>
+        <div class="noise-bar"><i id="noise-fill"></i><b id="noise-preview"></b></div>
+        <span class="noise-num" id="noise-num"></span>
+      </div>
+      <div class="sneak-recipe" id="sneak-recipe"></div>
+      <div class="sneak-board-wrap"><div class="sneak-board" id="sneak-board"></div></div>
+      <div class="sneak-controls">
+        <div class="sneak-plan" id="sneak-plan"></div>
+        <div class="sneak-buttons">
+          <button class="btn btn-ghost" id="sneak-undo"></button>
+          <button class="btn btn-ghost" id="sneak-wait"></button>
+          <button class="btn btn-primary" id="sneak-lock"></button>
+        </div>
+        <div class="sneak-status" id="sneak-status"></div>
+      </div>
+      <div class="sneak-intro" id="sneak-intro" hidden></div>
+    </section>
+
+    <section id="screen-sneak-results" class="screen">
+      <header class="topbar">
+        <div class="icon-btn-spacer"></div>
+        <div class="topbar-title" id="sr-title"></div>
+        <div class="icon-btn-spacer"></div>
+      </header>
+      <div class="results-hero">
+        <div class="results-bowl" id="sr-snack"></div>
+        <div class="results-stars" id="sr-stars"></div>
+        <h2 class="results-name" id="sr-headline"></h2>
+        <p class="results-score" id="sr-rounds"></p>
+      </div>
+      <div class="rr-stats" id="sr-stats"></div>
+      <div class="results-buttons">
+        <button class="btn btn-primary" id="sr-next"></button>
+        <button class="btn btn-secondary" id="sr-retry" data-i18n="sneak.retry">🔁 Try again</button>
+        <button class="btn btn-ghost" id="sr-lobby" data-i18n="results.lobby">Back to kitchen</button>
       </div>
     </section>
 

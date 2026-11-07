@@ -223,7 +223,7 @@
     const partner = room.players[1 - room.seat];
     $('#lobby-hint').textContent = !partner ? t('lobby.hintAlone')
       : !partner.connected ? t('lobby.hintAway', { name: partner.name }) : t('lobby.hintReady');
-    document.querySelectorAll('.mode-card[data-mode="relay"], .mode-card[data-mode="rush"]').forEach(b => (b.disabled = !partner));
+    document.querySelectorAll('.mode-card').forEach(b => (b.disabled = !partner));
 
     const s = room.stats;
     const recap = $('#lobby-recap');
@@ -235,10 +235,11 @@
         t('lobby.recapBest') + ' ', el('b', {}, `${I18N.dishName(best.dish, best.names)} ${'⭐'.repeat(best.stars) || '(0⭐)'}`),
       );
     }
-    const best = room.rushBest || {};
-    if (Object.keys(best).length) {
+    for (const [bestKey, label, unit] of [['rushBest', 'lobby.rushBest', 'rush.level'], ['sneakBest', 'lobby.sneakBest', 'sneak.night']]) {
+      const best = room[bestKey] || {};
+      if (!Object.keys(best).length) continue;
       if (recap.childNodes.length) recap.append(el('br'));
-      recap.append(t('lobby.rushBest') + ' ', el('b', {}, [1, 2, 3].filter(n => n in best).map(n => `${t('rush.level', { n })} ${'⭐'.repeat(best[n]) || '–'}`).join(' · ')));
+      recap.append(t(label) + ' ', el('b', {}, [1, 2, 3].filter(n => n in best).map(n => `${t(unit, { n })} ${'⭐'.repeat(best[n]) || '–'}`).join(' · ')));
     }
   }
 
@@ -696,6 +697,302 @@
     }
   }
 
+  // ───────── Midnight Snack ─────────
+  const STATION_EMOJI = { F: '🧊', S: '🥫', O: '🍳', B: '🔪', T: '🍽️', D: '🚪' };
+  const sneakUI = { key: null, animatedRound: null, animating: false, disp: null, introSeen: {}, timers: [] };
+  sfx.creak = () => { tone(140, 0.18, 'sawtooth', 0.05); tone(110, 0.2, 'sawtooth', 0.04, 0.08); };
+  sfx.meow = () => { tone(700, 0.12, 'triangle', 0.1); tone(950, 0.18, 'triangle', 0.08, 0.1); tone(600, 0.2, 'triangle', 0.06, 0.25); };
+  sfx.bonk = () => tone(90, 0.2, 'square', 0.1);
+  sfx.step = () => tone(220, 0.05, 'sine', 0.04);
+
+  const sameXY = (a, b) => a.x === b.x && a.y === b.y;
+  const isNext = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y) === 1;
+  const sTile = (g, x, y) => (g.map[y] && x >= 0 && x < g.map[y].length ? g.map[y][x] : '#');
+  const sWalk = (g, x, y) => '.~12'.includes(sTile(g, x, y));
+  const sStation = ch => 'FSOBT'.includes(ch);
+  function sDoor(g) { for (let y = 0; y < g.map.length; y++) { const x = g.map[y].indexOf('D'); if (x >= 0) return { x, y }; } return null; }
+  const sItemState = it => (it.chopped && it.cooked ? 'chopped_cooked' : it.cooked ? 'cooked' : it.chopped ? 'chopped' : 'raw');
+  function sItemHTML(ing, st) {
+    const info = I18N.sneakIng(ing);
+    return `<span class="itm st-${st}"><span class="e">${info.emoji}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
+  }
+
+  // Where my chef ends up after the planned moves, and the noise the plan will make.
+  function planEnd(g, seat, steps) {
+    let pos = { x: g.players[seat].x, y: g.players[seat].y };
+    for (const st of steps) if (st.t === 'move') pos = { x: st.x, y: st.y };
+    return pos;
+  }
+  function planNoise(g, steps, otherSteps = []) {
+    const N = g.noiseRules, door = sDoor(g);
+    let n = 0;
+    steps.forEach((st, k) => {
+      if (st.t === 'move') {
+        n += sTile(g, st.x, st.y) === '~' ? N.creak : N.walk;
+        if (door && Math.abs(door.x - st.x) + Math.abs(door.y - st.y) <= 2) n += N.nearDoor;
+      } else if (st.t === 'use') {
+        const ch = sTile(g, st.x, st.y);
+        const o = otherSteps[k];
+        if (ch === 'F') n += o && o.t === 'use' && o.x === st.x && o.y === st.y ? N.fridgeHeld / 2 : N.fridge;
+        else n += { S: N.shelf, O: N.stove, B: N.board, T: 0 }[ch] || 0;
+      }
+    });
+    return Math.round(n);
+  }
+
+  $('#sneak-back').addEventListener('click', () => { if (confirm(t('relay.leaveConfirm'))) socket.emit('room:lobby'); });
+
+  function sneakSend(action) {
+    socket.emit('sneak:act', action, res => { if (res && res.error) { toast(errText(res.error), 1500); sfx.err(); } });
+  }
+  function setMyPlan(steps) {
+    const g = state.game;
+    g.plans[g.me] = steps; g.locked[g.me] = false;     // optimistic; the server confirms
+    sneakSend({ type: 'plan', steps });
+    renderSneakDynamic(g);
+  }
+
+  $('#sneak-undo').addEventListener('click', () => { const g = state.game; if (sneakUI.animating || !g.plans[g.me].length) return; sfx.tap(); setMyPlan(g.plans[g.me].slice(0, -1)); });
+  $('#sneak-wait').addEventListener('click', () => {
+    const g = state.game; if (sneakUI.animating) return;
+    if (g.plans[g.me].length >= g.stepsPerRound) { toast(t('sneak.full'), 1400); return; }
+    sfx.tap(); setMyPlan([...g.plans[g.me], { t: 'wait' }]);
+  });
+  $('#sneak-lock').addEventListener('click', () => { if (sneakUI.animating) return; sfx.tap(); buzz(15); sneakSend({ type: 'lock' }); });
+
+  $('#sneak-board').addEventListener('click', e => {
+    const tile = e.target.closest('.tile');
+    const g = state && state.game;
+    if (!tile || !g || g.mode !== 'sneak' || g.phase !== 'planning' || sneakUI.animating) return;
+    const x = +tile.dataset.x, y = +tile.dataset.y;
+    const steps = g.plans[g.me];
+    if (steps.length >= g.stepsPerRound) { toast(t('sneak.full'), 1400); shake(tile); return; }
+    const end = planEnd(g, g.me, steps);
+    if (sameXY(end, { x, y })) { sfx.tap(); setMyPlan([...steps, { t: 'wait' }]); return; }
+    if (!isNext(end, { x, y })) { toast(t('sneak.notNext'), 1400); shake(tile); sfx.err(); return; }
+    const ch = sTile(g, x, y);
+    if (sWalk(g, x, y)) { sfx.step(); buzz(6); setMyPlan([...steps, { t: 'move', x, y }]); }
+    else if (sStation(ch)) { sfx.tap(); buzz(6); setMyPlan([...steps, { t: 'use', x, y }]); }
+    else { shake(tile); sfx.err(); }
+  });
+
+  function buildSneak(g) {
+    const H = g.map.length, W = g.map[0].length;
+    const board = $('#sneak-board');
+    board.style.setProperty('--w', W); board.style.setProperty('--h', H);
+    board.replaceChildren();
+    g.map.forEach((row, y) => [...row].forEach((ch, x) => {
+      const cls = ch === '#' ? 'wall' : ch === '~' ? 'floor creak' : '.12'.includes(ch) ? 'floor' : 'station st-' + ch;
+      const tile = el('div', { class: 'tile ' + cls, 'data-x': x, 'data-y': y });
+      if (STATION_EMOJI[ch]) tile.append(el('span', { class: 'st-e' }, STATION_EMOJI[ch]));
+      if (ch === 'D') tile.append(el('span', { class: 'door-face', id: 'door-face' }, '😴'));
+      tile.style.gridColumn = x + 1; tile.style.gridRow = y + 1;
+      board.append(tile);
+    }));
+    const place = (node, x, y) => { node.style.left = (x / W * 100) + '%'; node.style.top = (y / H * 100) + '%'; };
+    board.append(el('div', { class: 'markers', id: 'sneak-markers' }));
+    const cat = el('div', { class: 'sprite cat', id: 'sneak-cat' }, '🐈');
+    board.append(cat);
+    [0, 1].forEach(seat => {
+      const c = el('div', { class: `sprite chef p${seat}`, id: 'sneak-chef-' + seat });
+      c.innerHTML = chefSVG(seat, 'happy') + '<span class="chef-hand"></span>';
+      board.append(c);
+    });
+    sneakUI.place = place;
+  }
+
+  function renderSneakDynamic(g) {
+    const disp = sneakUI.animating && sneakUI.disp ? sneakUI.disp : { players: g.players, cat: g.cat, noise: g.noise, table: g.table };
+    const me = g.me, place = sneakUI.place;
+    const planning = g.phase === 'planning' && !sneakUI.animating;
+
+    $('#sneak-night').textContent = t('sneak.night', { n: g.level });
+    $('#sneak-round').textContent = t('sneak.round', { r: Math.min(g.round, g.maxRounds), max: g.maxRounds });
+
+    // Chefs, cat, light
+    disp.players.forEach((p, seat) => {
+      const c = $('#sneak-chef-' + seat);
+      place(c, p.x, p.y);
+      c.classList.toggle('me', seat === me);
+      c.querySelector('.chef-hand').innerHTML = p.hand ? sItemHTML(p.hand.ing, sItemState(p.hand)) : '';
+    });
+    place($('#sneak-cat'), disp.cat.x, disp.cat.y);
+    document.querySelectorAll('#sneak-board .tile').forEach(tile => {
+      const x = +tile.dataset.x, y = +tile.dataset.y;
+      const d = Math.min(...disp.players.map(p => Math.abs(p.x - x) + Math.abs(p.y - y)));
+      tile.classList.toggle('lit', d <= 1);
+      tile.classList.toggle('glow', d === 2);
+    });
+
+    // Plan markers (mine solid, partner's faded) and the cat's next paw prints
+    const markers = $('#sneak-markers');
+    markers.replaceChildren();
+    if (planning) {
+      [1 - me, me].forEach(seat => {
+        g.plans[seat].forEach((st, k) => {
+          if (st.t === 'wait') return;
+          const m = el('div', { class: `marker p${seat} ${st.t}${seat === me ? ' mine' : ''}` }, st.t === 'use' ? '✋' : String(k + 1));
+          place(m, st.x, st.y);
+          markers.append(m);
+        });
+      });
+      if (g.catPath.length > 1) {
+        for (let k = 1; k <= g.stepsPerRound; k++) {
+          const [x, y] = g.catPath[(g.catIndex + k) % g.catPath.length];
+          if (x === g.cat.x && y === g.cat.y) continue;
+          const paw = el('div', { class: 'marker paw' }, '🐾');
+          place(paw, x, y);
+          markers.append(paw);
+        }
+      }
+    }
+
+    // Noise meter
+    const ratio = disp.noise / g.maxNoise;
+    $('#noise-fill').style.width = Math.min(100, ratio * 100) + '%';
+    $('#noise-fill').className = ratio >= 0.75 ? 'hot' : ratio >= 0.45 ? 'warm' : '';
+    const preview = planning ? planNoise(g, g.plans[me], g.plans[1 - me]) : 0;
+    const pv = $('#noise-preview');
+    pv.style.left = Math.min(100, ratio * 100) + '%';
+    pv.style.width = Math.min(100 - ratio * 100, (preview / g.maxNoise) * 100) + '%';
+    $('#noise-num').textContent = preview ? `${disp.noise}/${g.maxNoise} · ${t('sneak.planPreview', { n: preview })}` : `${disp.noise}/${g.maxNoise}`;
+    const face = g.phase === 'lost' && g.result && g.result.reason === 'woke' && !sneakUI.animating ? '😡' : ratio >= 0.75 ? '😳' : ratio >= 0.45 ? '😪' : '😴';
+    $('#noise-face').textContent = face;
+    const df = $('#door-face'); if (df) df.textContent = face;
+
+    // Recipe + what each chef holds
+    $('#sneak-recipe').innerHTML = `<span class="snack">${g.snack.emoji}</span>` +
+      g.recipe.map(c => { const [ing, st] = c.split(':'); return `<span class="comp${disp.table.includes(c) ? ' done' : ''}">${sItemHTML(ing, st)}</span>`; }).join('');
+
+    // Plan slots
+    const mine = g.plans[me];
+    const start = { x: g.players[me].x, y: g.players[me].y };
+    let pos = start;
+    $('#sneak-plan').replaceChildren(...Array.from({ length: g.stepsPerRound }, (_, k) => {
+      const st = mine[k];
+      let label = '';
+      if (st && st.t === 'wait') label = '⏳';
+      else if (st && st.t === 'use') label = STATION_EMOJI[sTile(g, st.x, st.y)] || '✋';
+      else if (st && st.t === 'move') { label = st.x > pos.x ? '➡️' : st.x < pos.x ? '⬅️' : st.y > pos.y ? '⬇️' : '⬆️'; pos = st; }
+      return el('div', { class: 'plan-slot' + (st ? ' filled' : '') }, label || String(k + 1));
+    }));
+
+    const partner = playerName(1 - me);
+    $('#sneak-undo').textContent = t('sneak.undo');
+    $('#sneak-wait').textContent = t('sneak.wait');
+    const lockBtn = $('#sneak-lock');
+    lockBtn.textContent = g.locked[me] ? t('sneak.unlock') : t('sneak.lock');
+    lockBtn.classList.toggle('is-ready', g.locked[me]);
+    ['#sneak-undo', '#sneak-wait', '#sneak-lock'].forEach(sel => ($(sel).disabled = !planning));
+    $('#sneak-undo').disabled = !planning || !mine.length || g.locked[me];
+    $('#sneak-status').textContent = sneakUI.animating ? t('sneak.watching')
+      : !planning ? ''
+      : g.locked[1 - me] ? t('sneak.partnerLocked', { name: partner })
+      : mine.length === 0 ? t('sneak.tapHint')
+      : t('sneak.partnerPlanning', { name: partner, n: g.plans[1 - me].length });
+  }
+
+  function sneakPop(g, x, y, text, cls = '') {
+    const pop = el('div', { class: 'sneak-pop ' + cls }, text);
+    sneakUI.place(pop, x, y);
+    $('#sneak-board').append(pop);
+    setTimeout(() => pop.remove(), 1300);
+  }
+
+  function animateRound(g) {
+    const lr = g.lastRound;
+    sneakUI.animating = true;
+    sneakUI.timers.forEach(clearTimeout); sneakUI.timers = [];
+    lr.steps.forEach((st, i) => {
+      sneakUI.timers.push(setTimeout(() => {
+        sneakUI.disp = st;
+        renderSneakDynamic(g);
+        let quietStep = true;
+        for (const e of st.events) {
+          const who = e.who != null ? st.players[e.who] : null;
+          const at = who || st.players[0];
+          const item = e.ing ? I18N.sneakIng(e.ing).emoji : '';
+          const txt = { creak: t('sneak.ev.creak'), meow: t('sneak.ev.meow'), bonk: t('sneak.ev.bonk'), hold: t('sneak.ev.hold'),
+            grab: '+' + item, cook: '🔥 ' + item, chop: '🔪 ' + item, place: '✅ ' + item, putBack: '↩ ' + item,
+            wrongPlace: t('sneak.ev.wrongPlace'), handsFull: t('sneak.ev.handsFull'), miss: t('sneak.ev.miss'), nothing: t('sneak.ev.nothing') }[e.type];
+          if (txt) sneakPop(g, at.x, at.y, txt, e.type);
+          if (e.type === 'creak') { sfx.creak(); buzz(40); quietStep = false; }
+          else if (e.type === 'meow') { sfx.meow(); buzz([40, 40, 40]); quietStep = false; }
+          else if (e.type === 'bonk') { sfx.bonk(); buzz(80); quietStep = false; }
+          else if (e.type === 'place') { sfx.done(); buzz(20); }
+          else if (e.type === 'grab' || e.type === 'cook' || e.type === 'chop') sfx.tap();
+          else if (e.type === 'woke') { sfx.err(); buzz([100, 50, 200]); document.body.classList.add('lights-on'); setTimeout(() => document.body.classList.remove('lights-on'), 1800); }
+          else if (e.type === 'won') { sfx.ding(); floatEmoji('🌙', 6); }
+        }
+        if (quietStep) sfx.step();
+      }, i * 750));
+    });
+    sneakUI.timers.push(setTimeout(() => {
+      sneakUI.animating = false; sneakUI.disp = null;
+      render(true);
+      const g2 = state.game;
+      if (g2 && g2.mode === 'sneak' && g2.phase === 'planning') { sfx.yourTurn(); buzz(20); }
+    }, lr.steps.length * 750 + (g.phase === 'planning' ? 250 : 1400)));
+  }
+
+  function showSneakIntro(g) {
+    const box = $('#sneak-intro');
+    if (sneakUI.introSeen[g.level] || g.round > 1 || g.phase !== 'planning') { box.hidden = true; return; }
+    box.hidden = false;
+    box.replaceChildren(el('div', { class: 'intro-card' },
+      el('div', { class: 'intro-snack' }, g.snack.emoji),
+      el('h2', {}, t('sneak.introTitle', { n: g.level, snack: g.snack.name[I18N.lang] })),
+      el('div', { class: 'intro-recipe' }),
+      el('ul', {}, t('sneak.rules').map(r => el('li', {}, r))),
+      el('p', { class: 'intro-legend' }, t('sneak.legend')),
+      tapBtn('btn btn-primary', () => { sneakUI.introSeen[g.level] = true; box.hidden = true; sfx.tap(); }, t('sneak.start'))));
+    box.querySelector('.intro-recipe').innerHTML = g.recipe.map(c => { const [ing, st] = c.split(':'); return `<span class="comp">${sItemHTML(ing, st)}</span>`; }).join(' + ');
+  }
+
+  function renderSneak(quiet) {
+    const g = state.game;
+    const key = ['sneak', g.level, I18N.lang, g.map.join('')].join('|');
+    const newGame = !prev || !prev.game || prev.game.mode !== 'sneak' || prev.game.level !== g.level || (prev.game.round > g.round) || (!g.lastRound && prev.game.lastRound);
+    if (key !== sneakUI.key || newGame) {
+      if (key !== sneakUI.key) { sneakUI.key = key; buildSneak(g); }
+      if (newGame) { sneakUI.animatedRound = g.lastRound ? g.lastRound.round : null; sneakUI.timers.forEach(clearTimeout); sneakUI.animating = false; }
+    }
+    if (g.lastRound && g.lastRound.round !== sneakUI.animatedRound) {
+      sneakUI.animatedRound = g.lastRound.round;
+      if (!quiet) { animateRound(g); return; }
+    }
+    if (g.phase !== 'planning' && !sneakUI.animating) { show('sneak-results', 'sneak'); renderSneakResults(); return; }
+    renderSneakDynamic(g);
+    showSneakIntro(g);
+  }
+
+  // ───────── Midnight Snack results ─────────
+  $('#sr-next').addEventListener('click', () => { sfx.tap(); socket.emit('sneak:level', { level: state.game.level + 1 }); });
+  $('#sr-retry').addEventListener('click', () => { sfx.tap(); socket.emit('sneak:level', { level: state.game.level }); });
+  $('#sr-lobby').addEventListener('click', () => { sfx.tap(); socket.emit('room:lobby'); });
+
+  function renderSneakResults() {
+    const g = state.game, r = g.result, room = state.room;
+    $('#sr-title').textContent = r.won ? t('sneak.resultTitleWon') : t('sneak.resultTitleLost');
+    $('#sr-snack').textContent = r.won ? g.snack.emoji : r.reason === 'woke' ? '💡' : '☀️';
+    $('#sr-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < r.stars ? '' : 'off' }, '⭐')));
+    $('#sr-headline').textContent = r.won ? t('sneak.won') : r.reason === 'woke' ? t('sneak.woke') : t('sneak.sunrise');
+    $('#sr-rounds').textContent = t('sneak.roundsUsed', { r: r.rounds, par: r.par });
+    const st = r.stats, lines = [];
+    [0, 1].forEach(s => { if (st.creaks[s]) lines.push(t('sneak.statCreaks', playerName(s), st.creaks[s])); });
+    [0, 1].forEach(s => { if (st.meows[s]) lines.push(t('sneak.statMeows', playerName(s), st.meows[s])); });
+    if (st.bonks) lines.push(t('sneak.statBonks', st.bonks));
+    if (st.held) lines.push(t('sneak.statHeld', st.held));
+    if (!lines.length) lines.push(t('sneak.statQuiet'));
+    const unlocked = r.unlocked || 1;
+    if (r.won && r.last) lines.push(t('sneak.allDone'));
+    else if (!r.won && unlocked <= r.level && r.level < 3) lines.push(t('sneak.needStar'));
+    $('#sr-stats').replaceChildren(...lines.map(l => el('div', {}, l)));
+    const next = $('#sr-next');
+    next.hidden = !(r.level < 3 && unlocked > r.level);
+    next.textContent = t('sneak.next', { n: r.level + 1 });
+  }
+
   // ───────── Main render ─────────
   function render(quiet = false) {
     if (!state) return show('home');
@@ -709,6 +1006,14 @@
 
     if (!game) { show('lobby'); renderLobby(); return; }
     if (!catalog) return;  // wait for ingredient data
+    if (game.mode === 'sneak') {
+      // Let the last round finish playing out before showing the results.
+      if (game.phase !== 'planning' && !sneakUI.animating && !(game.lastRound && game.lastRound.round !== sneakUI.animatedRound && !quiet)) {
+        show('sneak-results', 'sneak'); renderSneakResults(); return;
+      }
+      show('sneak', 'sneak'); renderSneak(quiet);
+      return;
+    }
     if (game.mode === 'rush') {
       if (game.phase === 'results') { show('rush-results', 'rush'); renderRushResults(quiet); }
       else { show('rush', 'rush'); renderRush(quiet); }

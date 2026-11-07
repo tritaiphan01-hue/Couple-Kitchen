@@ -4,10 +4,11 @@ const express = require('express');
 const { Server } = require('socket.io');
 const relay = require('./relay');
 const rush = require('./rush');
+const sneak = require('./sneak');
 
 const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;   // forget rooms idle for a day
-const MODES = { relay, rush };              // 'sneak' arrives later
+const MODES = { relay, rush, sneak };
 const TICK_MS = 250;
 
 const app = express();
@@ -16,6 +17,7 @@ app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 app.get('/api/catalog', (_req, res) => res.json({
   ingredients: relay.INGREDIENTS, dishTypes: relay.DISH_TYPES, actions: relay.ACTIONS,
   rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES },
+  sneak: { ingredients: sneak.INGREDIENTS },
 }));
 
 const server = http.createServer(app);
@@ -55,6 +57,7 @@ function publicRoom(room, seat) {
     players: room.players.map(p => (p ? { name: p.name, connected: p.connected } : null)),
     stats: room.stats,
     rushBest: room.rushBest,
+    sneakBest: room.sneakBest,
   };
 }
 
@@ -99,6 +102,7 @@ io.on('connection', socket => {
       game: null,
       stats: { rounds: 0, stars: 0, dishes: [] },
       rushBest: {},              // level → best stars in Split Kitchen
+      sneakBest: {},             // night → best stars in Midnight Snack
       lastActive: Date.now(),
     };
     rooms.set(code, room);
@@ -150,8 +154,8 @@ io.on('connection', socket => {
     if (!room) return ack({ error: 'no_room' });
     if (!MODES[mode]) return ack({ error: 'mode_soon' });
     if (!room.players[0] || !room.players[1]) return ack({ error: 'need_partner' });
-    room.game = mode === 'rush'
-      ? rush.createRushGame(rushStartLevel(room))
+    room.game = mode === 'rush' ? rush.createRushGame(maxUnlocked(room, 'rush'))
+      : mode === 'sneak' ? sneak.createSneakGame(maxUnlocked(room, 'sneak'))
       : relay.createRelayGame(room.stats.rounds + 1);
     ack({ ok: true });
     broadcast(room);
@@ -166,13 +170,39 @@ io.on('connection', socket => {
     if (!err) broadcast(room);
   });
 
+  // ---- Midnight Snack ----
+  socket.on('sneak:act', (action, ack = () => {}) => {
+    const room = rooms.get(socket.data.code);
+    const g = room && room.game;
+    if (!g || g.mode !== 'sneak') return ack({ error: 'no_game' });
+    const wasPlaying = g.phase === 'planning';
+    const err = sneak.act(g, socket.data.seat, action || {});
+    if (err) return ack({ error: err });
+    if (wasPlaying && g.phase !== 'planning') {
+      room.sneakBest[g.level] = Math.max(room.sneakBest[g.level] || 0, g.result.stars);
+      g.result.unlocked = maxUnlocked(room, 'sneak');
+    }
+    ack({ ok: true });
+    broadcast(room);
+  });
+
+  socket.on('sneak:level', ({ level } = {}) => {
+    const room = rooms.get(socket.data.code);
+    const g = room && room.game;
+    if (!g || g.mode !== 'sneak') return;
+    level = level | 0;
+    if (level < 1 || level > maxUnlocked(room, 'sneak')) return;
+    room.game = sneak.createSneakGame(level);
+    broadcast(room);
+  });
+
   // Pick a level (ready screen) or play the next/same level again (results screen).
   socket.on('rush:level', ({ level } = {}) => {
     const room = rooms.get(socket.data.code);
     const g = room && room.game;
     if (!g || g.mode !== 'rush' || (g.phase !== 'ready' && g.phase !== 'results')) return;
     level = level | 0;
-    if (level < 1 || level > maxUnlocked(room)) return;
+    if (level < 1 || level > maxUnlocked(room, 'rush')) return;
     room.game = rush.createRushGame(level, g.roles);
     broadcast(room);
   });
@@ -221,12 +251,13 @@ io.on('connection', socket => {
 });
 
 // Levels unlock by earning at least one star on the previous one.
-function maxUnlocked(room) {
+function maxUnlocked(room, mode) {
+  const best = mode === 'sneak' ? room.sneakBest : room.rushBest;
+  const total = mode === 'sneak' ? sneak.LEVELS.length : rush.LEVELS.length;
   let n = 1;
-  while (n < rush.LEVELS.length && (room.rushBest[n] || 0) >= 1) n++;
+  while (n < total && (best[n] || 0) >= 1) n++;
   return n;
 }
-function rushStartLevel(room) { return maxUnlocked(room); }
 
 // One shared clock for every Split Kitchen in progress.
 setInterval(() => {
@@ -238,7 +269,7 @@ setInterval(() => {
     rush.tick(g, now, room.players.map(p => !!(p && p.connected)));
     if (g.phase === 'results') {
       room.rushBest[g.level] = Math.max(room.rushBest[g.level] || 0, g.result.stars);
-      g.result.unlocked = maxUnlocked(room);
+      g.result.unlocked = maxUnlocked(room, 'rush');
     }
     if (g.phase !== 'ready' || before !== g.phase) broadcast(room);
   }
