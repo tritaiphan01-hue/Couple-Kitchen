@@ -189,18 +189,28 @@
   });
   socket.on('disconnect', () => banner(t('reconnecting')));
   socket.on('kicked', code => { store.del('room'); state = null; toast(errText(code)); show('home'); });
-  socket.on('state', s => { prev = state; state = s; store.set('room', s.room.code); saveProgress(s.room); render(); });
+  let lastRoomCode = null;
+  socket.on('state', s => {
+    prev = state; state = s;
+    if (s.room.code !== lastRoomCode) { lastRoomCode = s.room.code; store.set('room', s.room.code); }
+    saveProgress(s.room);
+    render();
+  });
 
   // Keep a copy of the couple's progress on this phone so it survives server restarts.
+  let lastSaved = '';
   function saveProgress(room) {
     const me = room.players[room.seat];
     if (!room.shop || !me) return;
-    store.set('progress', {
+    const data = {
       v: 1,
       couple: { wallet: room.shop.wallet, upgrades: room.shop.upgrades, decorOwned: room.shop.decorOwned, decor: room.shop.decor, rushBest: room.rushBest, sneakBest: room.sneakBest },
       me: { owned: me.owned, look: me.look },
-      savedAt: Date.now(),
-    });
+    };
+    const json = JSON.stringify(data);
+    if (json === lastSaved) return;      // was written 4×/s during Split Kitchen
+    lastSaved = json;
+    store.set('progress', { ...data, savedAt: Date.now() });
   }
   const savedProgress = () => store.get('progress', null);
   socket.on('react', ({ emoji }) => { floatEmoji(emoji, emoji === '❤️' ? 9 : 4); sfx.heart(); buzz(20); });
@@ -405,38 +415,26 @@
     gma.className = 'grandma ' + (last ? last.mood : '') + (g.hearts <= 0 ? ' angry' : '');
     $('#gma-bubble').textContent = gmaUI.line;
 
-    // While choosing, show what the tapped icon actually is (🌾 = Sả / Lemongrass).
-    const lm = $('#last-move');
-    lm.classList.toggle('picking', !!selection);
-    lm.textContent = !selection ? lastText
-      : selection.kind === 'ingredient' ? `👉 ${I18N.ingEmoji(selection.id)} ${I18N.ingName(selection.id)}`
-      : selection.kind === 'remove' ? `👉 ${t('relay.scoopIt')}`
-      : `👉 ${I18N.actEmoji(selection.id)} ${I18N.actName(selection.id)}`;
-
     renderSecret();
 
     $('#pantry').replaceChildren(...ingIds.map(id => el('button', {
       'aria-label': I18N.ingName(id), title: I18N.ingName(id),
       class: selection && selection.id === id ? 'selected' : '',
       disabled: !mine || inPot.has(id),
-      onclick: () => { selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); renderRelay(true); },
+      'data-id': id,
+      onclick: () => { if (!mine) return; selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); refreshRelaySelection(); },
     }, iconEl('span', { class: 'pi' }, relayIcon(id)))));
 
-    const pick = sel => () => { selection = sel; sfx.tap(); buzz(8); renderRelay(true); };
+    const pick = sel => () => { if (!mine) return; selection = sel; sfx.tap(); buzz(8); refreshRelaySelection(); };
     const actionBtns = Object.keys(catalog.actions).map(id => el('button', {
-      class: selection && selection.kind === 'action' && selection.id === id ? 'selected' : '',
-      disabled: !mine, onclick: pick({ kind: 'action', id }),
+      'data-kind': 'action', 'data-id': id, disabled: !mine, onclick: pick({ kind: 'action', id }),
     }, el('span', { class: 'e' }, I18N.actEmoji(id)), I18N.actName(id)));
     actionBtns.push(el('button', {
-      class: 'scoop' + (selection && selection.kind === 'remove' ? ' selected' : ''),
-      disabled: !mine || !inPot.size, onclick: pick({ kind: 'remove' }),
+      class: 'scoop', 'data-kind': 'remove', disabled: !mine || !inPot.size, onclick: pick({ kind: 'remove' }),
     }, el('span', { class: 'e' }, '↩️'), t('relay.scoop')));
-    const addLabel = !mine ? t('relay.wait')
-      : !selection ? t('relay.pick')
-      : selection.kind === 'ingredient' ? t('relay.add', { emoji: I18N.ingEmoji(selection.id) })
-      : selection.kind === 'remove' ? t('relay.scoopIt')
-      : t('relay.doIt', { action: I18N.actName(selection.id) });
-    $('#actions').replaceChildren(...actionBtns, el('button', { class: 'add-btn', disabled: !mine || !selection, onclick: commitMove }, addLabel));
+    $('#actions').replaceChildren(...actionBtns, el('button', { class: 'add-btn', onclick: commitMove }));
+    relayCtx = { mine, lastText };
+    refreshRelaySelection();
 
     if (quiet) return;
     // Sounds for Grandma's reaction, and for your turn.
@@ -450,6 +448,29 @@
     }
     const wasMine = sameRound && prev.game.phase === 'playing' && prev.game.currentSeat === room.seat;
     if (mine && !wasMine) { sfx.yourTurn(); buzz([30, 40, 30]); }
+  }
+
+  // Highlight the current pick and update the "Add" button, without rebuilding anything.
+  let relayCtx = { mine: false, lastText: '' };
+  function refreshRelaySelection() {
+    const { mine, lastText } = relayCtx;
+    document.querySelectorAll('#pantry button').forEach(b => b.classList.toggle('selected', !!selection && selection.kind === 'ingredient' && b.dataset.id === selection.id));
+    document.querySelectorAll('#actions button[data-kind]').forEach(b => b.classList.toggle('selected', !!selection && selection.kind === b.dataset.kind && (b.dataset.kind === 'remove' || b.dataset.id === selection.id)));
+    const add = $('#actions .add-btn');
+    if (add) {
+      add.disabled = !mine || !selection;
+      add.textContent = !mine ? t('relay.wait') : !selection ? t('relay.pick')
+        : selection.kind === 'ingredient' ? t('relay.add', { emoji: I18N.ingEmoji(selection.id) })
+        : selection.kind === 'remove' ? t('relay.scoopIt')
+        : t('relay.doIt', { action: I18N.actName(selection.id) });
+    }
+    // While choosing, show what the tapped icon actually is (🌾 = Sả / Lemongrass).
+    const lm = $('#last-move');
+    lm.classList.toggle('picking', !!selection);
+    lm.textContent = !selection ? lastText
+      : selection.kind === 'ingredient' ? `👉 ${I18N.ingEmoji(selection.id)} ${I18N.ingName(selection.id)}`
+      : selection.kind === 'remove' ? `👉 ${t('relay.scoopIt')}`
+      : `👉 ${I18N.actEmoji(selection.id)} ${I18N.actName(selection.id)}`;
   }
 
   function commitMove() {
@@ -553,7 +574,35 @@
   const itemLabel = (ing, st) => `${I18N.rushIng(ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
 
   function shake(node) { if (!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
+  // Show the likely result immediately; the server's next update (a few ms later) confirms or corrects it.
+  function predictRush(g, me, a) {
+    if (!g || g.phase !== 'playing' || !g.running) return;
+    const hand = g.hands[me], role = g.myRole;
+    const cfg = g.config;
+    if (a.type === 'pantry' && role === 'cook' && !hand) g.hands[me] = { id: -1, ing: a.ing, chopped: false, cookedMs: 0, burnt: false };
+    else if (a.type === 'trash' && hand) g.hands[me] = null;
+    else if (a.type === 'counter') {
+      const slot = g.counter[a.i];
+      if (hand && !slot) { g.counter[a.i] = { item: hand, by: me }; g.hands[me] = null; }
+      else if (!hand && slot) { g.hands[me] = slot.item; g.counter[a.i] = null; }
+    } else if (a.type === 'burner' && role === 'cook') {
+      const b = g.burners[a.i];
+      if (hand && !b.item && !hand.burnt) { b.item = hand; b.since = rushClock(); g.hands[me] = null; }
+      else if (!hand && b.item) { g.hands[me] = { ...b.item, cookedMs: b.item.cookedMs + (rushClock() - b.since) }; b.item = null; }
+    } else if (a.type === 'plate' && role === 'prep') {
+      if (hand && !hand.burnt && g.plate.length < 4) { g.plate.push(hand); g.hands[me] = null; }
+      else if (!hand && g.plate.length) g.hands[me] = g.plate.pop();
+    } else if (a.type === 'board' && role === 'prep') {
+      const bd = g.board;
+      if (hand && !bd.item && !hand.chopped && hand.cookedMs < cfg.cookMs && !hand.burnt) { bd.item = hand; bd.taps = 0; g.hands[me] = null; }
+      else if (!hand && bd.item && bd.item.chopped) { g.hands[me] = bd.item; bd.item = null; bd.taps = 0; }
+      else return;   // chopping is shown by the board's own tap handler
+    } else return;
+    updateRush(g);
+  }
+
   function rushSend(action, node) {
+    if (state && state.game && state.game.mode === 'rush') predictRush(state.game, state.room.seat, action);
     socket.emit('rush:act', action, res => {
       if (res && res.error) {
         if (!SILENT_ERRORS.has(res.error)) { toast(errText(res.error), 1500); sfx.err(); }
@@ -561,11 +610,17 @@
       }
     });
   }
+  // Kitchen controls react on touch-down (no waiting for the finger to lift); other buttons on click.
+  const FAST = /\b(slot|trash|clear-plate|serve)\b/;
   const tapBtn = (cls, onTap, ...kids) => {
     const b = el('button', { class: cls }, ...kids);
-    b.addEventListener('click', () => onTap(b));
+    if (FAST.test(cls)) b.addEventListener('pointerdown', e => { if (e.button > 0) return; e.preventDefault(); onTap(b); });
+    else b.addEventListener('click', () => onTap(b));
     return b;
   };
+  // Only touch the DOM when the content really changed.
+  const setHTML = (node, html) => { if (node && node.__html !== html) { node.innerHTML = html; node.__html = html; } };
+  const setText = (node, text) => { if (node && node.textContent !== text) node.textContent = text; };
   function maxUnlocked(room, total = 10, key = 'rushBest') {
     let n = 1;
     while (n < total && ((room[key] || {})[n] || 0) >= 1) n++;
@@ -660,8 +715,8 @@
   function updateRush(g) {
     const room = state.room, me = room.seat;
     const cfg = g.config;
-    $('#rush-level').textContent = t('rush.level', { n: g.level });
-    $('#rush-coins').textContent = `💰 ${g.coins}`;
+    setText($('#rush-level'), t('rush.level', { n: g.level }));
+    setText($('#rush-coins'), `💰 ${g.coins}`);
     const playing = g.phase === 'playing';
     if (!playing) $('#rush-clock').textContent = fmtTime(cfg.durationMs - g.clock);
     $('#rush-orders').hidden = !playing;
@@ -702,7 +757,7 @@
     // Counter
     document.querySelectorAll('.counter-slot').forEach((b, i) => {
       const slot = g.counter[i];
-      b.innerHTML = slot ? itemHTML(slot.item.ing, rushItemState(slot.item, cfg)) : '';
+      setHTML(b, slot ? itemHTML(slot.item.ing, rushItemState(slot.item, cfg)) : '');
       b.classList.toggle('filled', !!slot);
       b.classList.toggle('from-partner', !!slot && slot.by !== me);
     });
@@ -713,24 +768,24 @@
     if (handEl) {
       if (hand) {
         const st = rushItemState(hand, cfg);
-        handEl.innerHTML = `${itemHTML(hand.ing, st)}<span class="hand-text"><small>${t('rush.holding')}</small>${itemLabel(hand.ing, st)}</span>`;
-      } else handEl.innerHTML = `<span class="hand-text muted">${t('rush.handsEmpty')}</span>`;
+        setHTML(handEl, `${itemHTML(hand.ing, st)}<span class="hand-text"><small>${t('rush.holding')}</small>${itemLabel(hand.ing, st)}</span>`);
+      } else setHTML(handEl, `<span class="hand-text muted">${t('rush.handsEmpty')}</span>`);
       handEl.classList.toggle('full', !!hand);
     }
 
     if (g.myRole === 'prep') {
       const board = $('.board');
       const bi = g.board.item;
-      board.querySelector('.content').innerHTML = bi ? itemHTML(bi.ing, rushItemState(bi, cfg)) : '';
-      board.querySelector('.board-text').textContent = !bi ? t('rush.boardEmpty')
-        : bi.chopped ? t('rush.chopDone') : t('rush.tapChop', { n: g.board.taps, total: cfg.chopTaps });
+      setHTML(board.querySelector('.content'), bi ? itemHTML(bi.ing, rushItemState(bi, cfg)) : '');
+      setText(board.querySelector('.board-text'), !bi ? t('rush.boardEmpty')
+        : bi.chopped ? t('rush.chopDone') : t('rush.tapChop', { n: g.board.taps, total: cfg.chopTaps }));
       board.querySelector('.chopbar i').style.width = bi ? (bi.chopped ? 100 : (g.board.taps / cfg.chopTaps) * 100) + '%' : '0%';
       board.classList.toggle('ready-pick', !!(bi && bi.chopped));
-      $('.plate .content').innerHTML = g.plate.length
+      setHTML($('.plate .content'), g.plate.length
         ? g.plate.map(it => itemHTML(it.ing, rushItemState(it, cfg))).join('')
-        : `<span class="muted">${t('rush.plateEmpty')}</span>`;
+        : `<span class="muted">${t('rush.plateEmpty')}</span>`);
     }
-    if (g.myRole === 'cook') document.querySelectorAll('.burner').forEach((b, i) => { if (!g.burners[i].item) { b.querySelector('.content').innerHTML = `<span class="muted">${t('rush.burnerEmpty')}</span>`; rushUI.burnerState[i] = null; } });
+    if (g.myRole === 'cook') document.querySelectorAll('.burner').forEach((b, i) => { if (!g.burners[i].item) { setHTML(b.querySelector('.content'), `<span class="muted">${t('rush.burnerEmpty')}</span>`); rushUI.burnerState[i] = null; } });
   }
 
   // Per-frame animation: clock, order patience, burner progress.
@@ -923,7 +978,8 @@
   });
   $('#sneak-lock').addEventListener('click', () => { if (sneakUI.animating) return; sfx.tap(); buzz(15); sneakSend({ type: 'lock' }); });
 
-  $('#sneak-board').addEventListener('click', e => {
+  $('#sneak-board').addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
     const tile = e.target.closest('.tile');
     const g = state && state.game;
     if (!tile || !g || g.mode !== 'sneak' || g.phase !== 'planning' || sneakUI.animating) return;

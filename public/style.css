@@ -239,7 +239,6 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 }
 .pot-contents .ing {
   position: absolute; font-size: 30px; line-height: 1;
-  filter: drop-shadow(0 2px 0 rgba(0,0,0,.25));
   animation: drop-in .5s cubic-bezier(.3, 1.5, .6, 1) both, simmer 3s ease-in-out infinite;
 }
 @keyframes drop-in { from { transform: translateY(-120px) scale(.6); opacity: 0; } }
@@ -534,18 +533,22 @@ body.lights-on { animation: lights 1.6s ease; }
   border-radius: 14px; overflow: hidden; border: 3px solid #0D1030; background: #0D1030;
   touch-action: manipulation;
 }
-.tile { position: relative; display: grid; place-items: center; transition: filter .4s ease; filter: brightness(.45); }
-.tile.glow { filter: brightness(.7); }
-.tile.lit { filter: brightness(1); }
+.tile { position: relative; display: grid; place-items: center; }
+.tile::before { content: ''; position: absolute; inset: 0; background: #0B0D22; opacity: .55; transition: opacity .4s ease; pointer-events: none; z-index: 1; will-change: opacity; }
+.tile.glow::before { opacity: .3; }
+.tile.lit::before { opacity: 0; }
+.tile.wall::before, .tile.st-F::before, .tile.st-D::before { opacity: 0; }
+.tile.station::before { opacity: .2; }
+.tile.station.lit::before { opacity: 0; }
 .tile.floor { background: #3A3560; box-shadow: inset 0 0 0 1px rgba(0,0,0,.25); }
 .tile.creak { background: repeating-linear-gradient(90deg, #5A4A6E 0 6px, #4A3D5E 6px 8px); }
 .tile.creak::after { content: '▒'; position: absolute; font-size: .7rem; opacity: .35; color: #fff; }
-.tile.wall { background: #12142C; filter: none; }
-.tile.station { background: #4B4778; filter: brightness(.8); }
-.tile .st-e { font-size: min(7vw, 1.7rem); }
-.tile.st-F { background: #3E6E8E; box-shadow: inset 0 0 14px rgba(160,220,255,.7); filter: none; }
+.tile.wall { background: #12142C; }
+.tile.station { background: #4B4778; }
+.tile .st-e { font-size: min(7vw, 1.7rem); position: relative; z-index: 2; }
+.tile.st-F { background: #3E6E8E; box-shadow: inset 0 0 14px rgba(160,220,255,.7); }
 .tile.st-T { background: #7A5A3A; }
-.tile.st-D { background: #6B4A3A; filter: none; }
+.tile.st-D { background: #6B4A3A; }
 .tile.dog { background: #3A3560; }
 .tile.dog .st-e { font-size: min(6vw, 1.5rem); animation: bob 2.4s ease-in-out infinite; }
 .door-face { position: absolute; top: -2px; right: 0; font-size: .9rem; }
@@ -553,7 +556,7 @@ body.lights-on { animation: lights 1.6s ease; }
 .markers { position: absolute; inset: 0; pointer-events: none; }
 .sprite, .marker, .sneak-pop { position: absolute; width: calc(100% / var(--w)); height: calc(100% / var(--h)); display: grid; place-items: center; pointer-events: none; }
 .sprite { transition: left .45s ease, top .45s ease; z-index: 3; }
-.sprite.chef svg { width: 86%; height: 86%; filter: drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+.sprite.chef svg { width: 86%; height: 86%; }
 .sprite.chef.me::before { content: ''; position: absolute; inset: 8%; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,.75), 0 0 18px rgba(255,240,180,.6); }
 .chef-hand { position: absolute; right: -4%; bottom: -4%; font-size: min(5vw, 1.15rem); }
 .sprite.cat { font-size: min(7vw, 1.7rem); z-index: 2; }
@@ -562,7 +565,7 @@ body.lights-on { animation: lights 1.6s ease; }
 .marker.p0 { color: #3A2A00; } .marker.p0.move::before { background: var(--honey); }
 .marker.p1 { color: #fff; }    .marker.p1.move::before { background: var(--plum); }
 .marker:not(.mine) { opacity: .5; }
-.marker.use { font-size: 1.1rem; filter: drop-shadow(0 0 4px #fff); }
+.marker.use { font-size: 1.1rem; text-shadow: 0 0 4px #fff; }
 .marker.paw { font-size: .8rem; opacity: .55; }
 .sneak-pop { z-index: 5; font-family: var(--font-head); font-weight: 700; font-size: .95rem; color: #fff; text-shadow: 0 2px 0 #000, 0 0 8px #000; white-space: nowrap; animation: pop-up 1.3s ease-out forwards; }
 .sneak-pop.meow, .sneak-pop.bonk, .sneak-pop.creak { color: var(--butter); font-size: 1.05rem; }
@@ -646,7 +649,7 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 .topbar-right .icon-btn { width: 36px; }
 
 /* Sticker icons (icons.js) size like the emoji they replace */
-.ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; overflow: visible; filter: drop-shadow(0 1px 0 rgba(0,0,0,.15)); }
+.ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; overflow: visible; }
 .pantry .pi { display: grid; place-items: center; }
 .pantry .pi .ico { width: 1.4em; height: 1.4em; }
 .pantry-item .e .ico { width: 1.35em; height: 1.35em; }
@@ -659,7 +662,7 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 
 /* ───────── Recipe Relay: Grandma ───────── */
 .grandma { position: absolute; left: 0; top: 2px; display: flex; align-items: flex-start; gap: 4px; max-width: 64%; z-index: 3; pointer-events: none; }
-.gma-face { font-size: 2.1rem; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0,0,0,.3)); transition: transform .2s ease; }
+.gma-face { font-size: 2.1rem; line-height: 1; transition: transform .2s ease; }
 .gma-bubble {
   background: #FFF4E6; color: var(--cocoa); font-size: .8rem; font-weight: 800; line-height: 1.2;
   padding: 6px 9px; border-radius: 12px 12px 12px 3px; border: 2px solid var(--cocoa); box-shadow: 0 2px 0 var(--cocoa);
@@ -687,3 +690,6 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 .guess-status { margin: 10px 0 0; color: var(--cocoa-soft); min-height: 1.2em; }
 .results-guesses { text-align: center; font-size: .95rem; display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
 .result-card .answer .ico, .results-target .answer .ico { width: 1.2em; height: 1.2em; vertical-align: -0.25em; }
+
+/* Smoother sprites: let the GPU move them */
+.sprite { will-change: left, top; }
