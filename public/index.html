@@ -101,7 +101,10 @@
       <header class="topbar">
         <button class="icon-btn" id="relay-back" aria-label="Back to lobby">←</button>
         <div class="topbar-title" id="relay-title"></div>
-        <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+        <div class="topbar-right">
+          <button class="icon-btn help-btn" data-mode="relay" aria-label="How to play">❓</button>
+          <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+        </div>
       </header>
 
       <div class="turn-banner" id="turn-banner"></div>
@@ -265,6 +268,7 @@
   <div class="banner" id="conn-banner" hidden></div>
   <div class="toast" id="toast" hidden></div>
   <div class="float-layer" id="float-layer" aria-hidden="true"></div>
+  <div class="howto" id="howto" hidden></div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="i18n.js"></script>

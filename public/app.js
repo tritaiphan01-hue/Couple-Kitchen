@@ -33,10 +33,20 @@
   // ───────── Sound & haptics (synthesised, no audio files) ─────────
   let muted = store.get('muted', false);
   let actx = null;
+  // iPhones only allow audio that was started by a tap, so create/resume the
+  // audio context on the first touch, and again when the app comes back.
+  function unlockAudio() {
+    try {
+      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (actx.state !== 'running') actx.resume();
+    } catch { /* audio unavailable */ }
+  }
+  ['pointerdown', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && actx) actx.resume().catch(() => {}); });
   function tone(freq, dur = 0.12, type = 'sine', vol = 0.15, delay = 0) {
     if (muted) return;
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+      if (!actx || actx.state !== 'running') return;   // not unlocked by a tap yet
       const at = actx.currentTime + delay;
       const o = actx.createOscillator(), g = actx.createGain();
       o.type = type; o.frequency.setValueAtTime(freq, at);
@@ -53,7 +63,18 @@
     heart: () => tone(880, 0.12, 'sine', 0.08),
     err: () => tone(160, 0.18, 'square', 0.06),
   };
+  // Android vibrates; iPhone Safari has no vibration API, so this quietly does nothing there.
   const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* ignore */ } };
+
+  // Keep the screen awake during a game (supported on Android and iOS 16.4+).
+  let wakeLock = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wakeLock && navigator.wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+      else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+    } catch { wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && state && state.game) keepAwake(true); });
   function syncMuteButtons() { document.querySelectorAll('.mute-btn').forEach(b => (b.textContent = muted ? '🔇' : '🔊')); }
   document.querySelectorAll('.mute-btn').forEach(b => b.addEventListener('click', () => {
     muted = !muted; store.set('muted', muted); syncMuteButtons(); sfx.tap();
@@ -262,7 +283,13 @@
   });
 
   const secretCard = $('#secret-card');
-  secretCard.addEventListener('click', () => { cardHidden = !cardHidden; sfx.tap(); renderSecret(); });
+  // 'hide': blurred until tapped (playing side by side). 'show': always visible (playing apart).
+  let cardMode = store.get('cardMode', 'hide');
+  secretCard.addEventListener('click', () => {
+    sfx.tap();
+    if (cardMode === 'show') { toast(t('relay.cardInfo'), 3200); return; }
+    cardHidden = !cardHidden; renderSecret();
+  });
 
   $('#reactions').replaceChildren(...['❤️', '😏', '🤔', '👍', '👎', '😂'].map(e =>
     el('button', { 'aria-label': e, onclick: () => { socket.emit('react', { emoji: e }); floatEmoji(e, 3); sfx.heart(); buzz(10); } }, e)));
@@ -274,8 +301,9 @@
   }
 
   function renderSecret() {
-    secretCard.classList.toggle('hidden', cardHidden);
-    $('.secret-tip').textContent = cardHidden ? t('relay.peek') : t('relay.hide');
+    const hidden = cardMode === 'hide' && cardHidden;
+    secretCard.classList.toggle('hidden', hidden);
+    $('.secret-tip').textContent = cardMode === 'show' ? 'ⓘ' : hidden ? t('relay.peek') : t('relay.hide');
     $('#secret-list').replaceChildren(...state.game.myCard.map(c => el('li', {}, I18N.clueText(c))));
   }
 
@@ -470,6 +498,7 @@
         })),
         tapBtn('btn btn-ghost btn-swap', () => { sfx.tap(); rushSend({ type: 'swap' }); }, t('rush.swap')),
         tapBtn('btn btn-primary', () => { sfx.tap(); buzz(10); rushSend({ type: 'ready' }); }, ''),
+        tapBtn('btn btn-ghost btn-help', () => { sfx.tap(); showHowto('rush', true); }, t('howto.button')),
         el('div', { class: 'countdown', id: 'rush-countdown' }),
       );
       panel.querySelector('.btn-primary').id = 'rush-ready-btn';
@@ -501,7 +530,14 @@
         el('div', { class: 'kit-label' }, t('rush.board')),
         tapBtn('slot board', b => {
           const gg = state.game;
-          if (!state.game.hands[me] && gg.board.item && !gg.board.item.chopped) { sfx.chop(); buzz(5); b.classList.remove('chop'); void b.offsetWidth; b.classList.add('chop'); }
+          if (!state.game.hands[me] && gg.board.item && !gg.board.item.chopped) {
+            sfx.chop(); buzz(5); b.classList.remove('chop'); void b.offsetWidth; b.classList.add('chop');
+            // Show the chop right away instead of waiting for the server (feels snappier on slow mobile data).
+            const taps = Math.min(gg.config.chopTaps, gg.board.taps + 1);
+            gg.board.taps = taps;
+            b.querySelector('.chopbar i').style.width = (taps / gg.config.chopTaps) * 100 + '%';
+            b.querySelector('.board-text').textContent = taps >= gg.config.chopTaps ? t('rush.chopDone') : t('rush.tapChop', { n: taps, total: gg.config.chopTaps });
+          }
           else sfx.tap();
           rushSend({ type: 'board' }, b);
         }, el('span', { class: 'content' }), el('span', { class: 'board-text' }), el('span', { class: 'chopbar' }, el('i'))),
@@ -1086,6 +1122,35 @@
     }
   }
 
+  // ───────── How to play (first time per mode, on this phone) ─────────
+  function showHowto(mode, force = false) {
+    const key = 'seen:' + mode;
+    if (!force && store.get(key, false)) return;
+    const box = $('#howto');
+    const steps = t(`howto.${mode}.steps`);
+    const card = el('div', { class: 'intro-card howto-card' },
+      el('h2', {}, t(`howto.${mode}.title`)),
+      el('ol', {}, steps.map(st => el('li', {}, st))));
+    if (mode === 'relay') {
+      card.append(el('p', { class: 'howto-q' }, t('howto.relay.where')));
+      const choice = el('div', { class: 'howto-choice' }, ['hide', 'show'].map(m => {
+        const b = tapBtn('choice' + (cardMode === m ? ' on' : ''), () => {
+          cardMode = m; store.set('cardMode', m); sfx.tap();
+          choice.querySelectorAll('.choice').forEach(c => c.classList.toggle('on', c === b));
+          if (state && state.game && state.game.mode === 'relay') renderSecret();
+        },
+          el('b', {}, t(m === 'hide' ? 'howto.relay.together' : 'howto.relay.apart')),
+          el('small', {}, t(m === 'hide' ? 'howto.relay.togetherDesc' : 'howto.relay.apartDesc')));
+        return b;
+      }));
+      card.append(choice);
+    }
+    card.append(tapBtn('btn btn-primary', () => { store.set(key, true); box.hidden = true; sfx.tap(); }, t('howto.gotIt')));
+    box.replaceChildren(card);
+    box.hidden = false;
+  }
+  document.querySelectorAll('.help-btn').forEach(b => b.addEventListener('click', () => { sfx.tap(); showHowto(b.dataset.mode, true); }));
+
   // ───────── Main render ─────────
   function render(quiet = false) {
     if (!state) return show('home');
@@ -1098,6 +1163,7 @@
       : partner && !partner.connected && room.screen === 'game' ? t('partnerAway', { name: partner.name }) : '');
 
     document.body.dataset.decor = (room.shop && room.shop.decor) || '';
+    keepAwake(!!game);
     if (!game && shopOpen) { show('shop'); renderShop(); return; }
     if (!game) { show('lobby'); renderLobby(); return; }
     shopOpen = false;
@@ -1112,7 +1178,7 @@
     }
     if (game.mode === 'rush') {
       if (game.phase === 'results') { show('rush-results', 'rush'); renderRushResults(quiet); }
-      else { show('rush', 'rush'); renderRush(quiet); }
+      else { show('rush', 'rush'); renderRush(quiet); if (game.phase === 'ready') showHowto('rush'); }
       return;
     }
     if (game.mode === 'relay') {
@@ -1121,6 +1187,7 @@
         if (!prev || !prev.game || prev.game.round !== game.round) cardHidden = true;
         show('relay', 'relay');
         renderRelay(quiet);
+        showHowto('relay');
       }
     }
   }
