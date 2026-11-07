@@ -31,7 +31,7 @@ test('two players can create, join, play and reconnect', async t => {
   assert.strictEqual((await emit(c, 'room:join', { code: created.code, playerId: 'pc' })).error, 'room_full');
   c.close();
 
-  assert.strictEqual((await emit(a, 'mode:start', { mode: 'sneak' })).error, 'mode_soon');
+  assert.strictEqual((await emit(a, 'mode:start', { mode: 'karaoke' })).error, 'mode_soon');
 
   const started = nextState(b, s => s.game);
   await emit(a, 'mode:start', { mode: 'relay' });
