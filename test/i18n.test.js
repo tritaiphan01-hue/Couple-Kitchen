@@ -58,3 +58,19 @@ test('Vietnamese has every key English has', () => {
   const keys = b => [...b.matchAll(/^\s+'([\w.]+)':/gm)].map(m => m[1]).sort();
   assert.deepStrictEqual(keys(block('vi')), keys(block('en')));
 });
+
+test('every ingredient and Midnight Snack station has a drawn icon', () => {
+  const ctx = { window: {} };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/icons.js'), 'utf8'), ctx);
+  const I = ctx.window.Icons;
+  const sneak = require('../server/sneak');
+  const missing = [];
+  const check = (mode, ids) => ids.forEach(id => { if (I.icon(mode, id).includes('class="emo"')) missing.push(`${mode}:${id}`); });
+  check('relay', Object.keys(relay.INGREDIENTS));
+  check('rush', Object.keys(rush.INGREDIENTS));
+  check('sneak', Object.keys(sneak.INGREDIENTS));
+  check('station', ['F', 'S', 'O', 'B', 'T', 'D', 'G']);
+  assert.deepStrictEqual(missing, []);
+  assert.ok(I.svg('cat'));
+});

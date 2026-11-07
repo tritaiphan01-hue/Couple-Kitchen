@@ -20,6 +20,8 @@
     set(k, v) { try { localStorage.setItem('ck:' + k, JSON.stringify(v)); } catch { /* private mode */ } },
     del(k) { try { localStorage.removeItem('ck:' + k); } catch { /* ignore */ } },
   };
+  const iconEl = (tag, props, html) => { const n = el(tag, props); n.innerHTML = html; return n; };
+  const relayIcon = id => (window.Icons ? Icons.icon('relay', id, I18N.ingEmoji(id)) : I18N.ingEmoji(id));
   const SEAT_COLORS = [['#F5B83D', '#D99413'], ['#9B6BC4', '#774A9E']];
   const SEAT_FALLBACK = ['Honey', 'Plum'];
   const errText = code => (t('err.' + code) === 'err.' + code ? code : t('err.' + code));
@@ -362,7 +364,7 @@
     const ings = g.pot.filter(s => s.kind === 'ingredient');
     $('#pot-contents').replaceChildren(...ings.map((s, i) => {
       const spot = [[50, 40], [24, 50], [76, 48], [38, 14], [64, 18], [12, 22], [88, 24], [50, 0]][i % 8];
-      const n = el('span', { class: 'ing p' + s.by }, I18N.ingEmoji(s.id));
+      const n = iconEl('span', { class: 'ing p' + s.by }, relayIcon(s.id));
       n.style.left = `calc(${spot[0]}% - 15px)`; n.style.top = spot[1] + 'px';
       if (g.pot.indexOf(s) < prevLen) n.style.animation = 'simmer 3s ease-in-out infinite';
       n.style.animationDelay = (i * 0.3) + 's';
@@ -393,7 +395,7 @@
       class: selection && selection.id === id ? 'selected' : '',
       disabled: !mine || inPot.has(id),
       onclick: () => { selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); renderRelay(true); },
-    }, I18N.ingEmoji(id))));
+    }, iconEl('span', { class: 'pi' }, relayIcon(id)))));
 
     const actionBtns = Object.keys(catalog.actions).map(id => el('button', {
       class: selection && selection.id === id ? 'selected' : '',
@@ -427,7 +429,7 @@
   function renderResults(quiet = false) {
     const g = state.game, room = state.room;
     const names = [playerName(0), playerName(1)];
-    $('#results-bowl').replaceChildren(...g.pot.filter(s => s.kind === 'ingredient').map(s => el('span', { title: I18N.ingName(s.id) }, I18N.ingEmoji(s.id))));
+    $('#results-bowl').replaceChildren(...g.pot.filter(s => s.kind === 'ingredient').map(s => iconEl('span', { title: I18N.ingName(s.id) }, relayIcon(s.id))));
     $('#results-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < g.result.stars ? '' : 'off' }, '⭐')));
     $('#results-name').textContent = I18N.dishName(g.dish, names);
     $('#results-score').textContent = t('results.score', { met: g.result.met, total: g.result.total, verdict: t('results.verdicts')[g.result.stars] });
@@ -468,7 +470,8 @@
   }
   function itemHTML(ing, st) {
     const info = I18N.rushIng(ing);
-    return `<span class="itm st-${st}"><span class="e">${info.emoji}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
+    const pic = window.Icons ? Icons.icon('rush', ing, info.emoji) : info.emoji;
+    return `<span class="itm st-${st}"><span class="e">${pic}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
   }
   const itemLabel = (ing, st) => `${I18N.rushIng(ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
 
@@ -544,7 +547,7 @@
       body.append(el('div', { class: 'kit cook' },
         el('div', { class: 'kit-label' }, t('rush.pantry')),
         el('div', { class: 'rush-pantry' }, pantryIds.map(id => tapBtn('slot pantry-item', b => { sfx.tap(); buzz(6); rushSend({ type: 'pantry', ing: id }, b); },
-          el('span', { class: 'e' }, I18N.rushIng(id).emoji), el('span', { class: 'n' }, I18N.rushIng(id).name[I18N.lang])))),
+          iconEl('span', { class: 'e' }, window.Icons ? Icons.icon('rush', id, I18N.rushIng(id).emoji) : I18N.rushIng(id).emoji), el('span', { class: 'n' }, I18N.rushIng(id).name[I18N.lang])))),
         el('div', { class: 'kit-label' }, t('rush.stove')),
         el('div', { class: 'burners', style: `--b:${g.burners.length}` }, g.burners.map((_, i) => tapBtn('slot burner', b => { sfx.tap(); rushSend({ type: 'burner', i }, b); },
           el('span', { class: 'ring' }), el('span', { class: 'content' })))),
@@ -795,7 +798,8 @@
   const sItemState = it => (it.chopped && it.cooked ? 'chopped_cooked' : it.cooked ? 'cooked' : it.chopped ? 'chopped' : 'raw');
   function sItemHTML(ing, st) {
     const info = I18N.sneakIng(ing);
-    return `<span class="itm st-${st}"><span class="e">${info.emoji}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
+    const pic = window.Icons ? Icons.icon('sneak', ing, info.emoji) : info.emoji;
+    return `<span class="itm st-${st}"><span class="e">${pic}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
   }
 
   // Where my chef ends up after the planned moves, and the noise the plan will make.
@@ -866,14 +870,14 @@
     g.map.forEach((row, y) => [...row].forEach((ch, x) => {
       const cls = ch === '#' ? 'wall' : ch === '~' ? 'floor creak' : '.12'.includes(ch) ? 'floor' : ch === 'G' ? 'dog' : 'station st-' + ch;
       const tile = el('div', { class: 'tile ' + cls, 'data-x': x, 'data-y': y });
-      if (STATION_EMOJI[ch]) tile.append(el('span', { class: 'st-e' }, STATION_EMOJI[ch]));
+      if (STATION_EMOJI[ch]) tile.append(iconEl('span', { class: 'st-e' }, window.Icons ? Icons.icon('station', ch, STATION_EMOJI[ch]) : STATION_EMOJI[ch]));
       if (ch === 'D') tile.append(el('span', { class: 'door-face', id: 'door-face' }, '😴'));
       tile.style.gridColumn = x + 1; tile.style.gridRow = y + 1;
       board.append(tile);
     }));
     const place = (node, x, y) => { node.style.left = (x / W * 100) + '%'; node.style.top = (y / H * 100) + '%'; };
     board.append(el('div', { class: 'markers', id: 'sneak-markers' }));
-    const cat = el('div', { class: 'sprite cat', id: 'sneak-cat' }, '🐈');
+    const cat = iconEl('div', { class: 'sprite cat', id: 'sneak-cat' }, (window.Icons && Icons.svg('cat')) || '🐈');
     board.append(cat);
     [0, 1].forEach(seat => {
       const c = el('div', { class: `sprite chef p${seat}`, id: 'sneak-chef-' + seat });

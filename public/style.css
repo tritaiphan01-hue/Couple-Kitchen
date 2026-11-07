@@ -637,3 +637,15 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 
 .music-btn.off { opacity: .35; filter: grayscale(1); }
 .topbar-right .icon-btn { width: 36px; }
+
+/* Sticker icons (icons.js) size like the emoji they replace */
+.ico { width: 1em; height: 1em; display: inline-block; vertical-align: -0.12em; overflow: visible; filter: drop-shadow(0 1px 0 rgba(0,0,0,.15)); }
+.pantry .pi { display: grid; place-items: center; }
+.pantry .pi .ico { width: 1.4em; height: 1.4em; }
+.pantry-item .e .ico { width: 1.35em; height: 1.35em; }
+.sneak-recipe .ico, .intro-recipe .ico { width: 1.2em; height: 1.2em; }
+.tk-comps .ico { width: 1.15em; height: 1.15em; }
+.burner .content .ico { width: 1.05em; height: 1.05em; }
+.sprite.cat .ico { width: 1.1em; height: 1.1em; }
+.tile .st-e .ico { width: 1.05em; height: 1.05em; }
+.itm.st-burnt .e .ico { filter: grayscale(1) brightness(.35); }
