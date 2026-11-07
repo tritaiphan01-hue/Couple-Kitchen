@@ -110,4 +110,50 @@ function equip(room, seat, id) {
 
 const hasUpgrade = (room, id) => room.shop.upgrades.includes(id);
 
-module.exports = { ITEMS, DEFAULT_LOOKS, newPlayerShopState, newRoomShopState, grant, buy, equip, hasUpgrade };
+// ---- Saved progress ----------------------------------------------------
+// Each phone keeps a copy of the couple's progress (wallet, upgrades, decor,
+// unlocked levels) plus its own chef's look. When a kitchen opens, or a partner
+// joins one, the saved copy is merged in: wallet takes the larger amount, owned
+// items and level stars are combined. A partner simply rejoining after a dropped
+// connection is NOT merged again, so spent coins can't come back.
+
+const MAX_WALLET = 1000000;
+const ids = (list, kind) => (Array.isArray(list) ? [...new Set(list.filter(id => typeof id === 'string' && has(ITEMS, id) && ITEMS[id].kind === kind))] : []);
+function cleanBest(best, levels) {
+  const out = {};
+  if (best && typeof best === 'object') {
+    for (const [k, v] of Object.entries(best)) {
+      const n = parseInt(k, 10), stars = Math.min(3, Math.max(0, v | 0));
+      if (n >= 1 && n <= levels) out[n] = stars;
+    }
+  }
+  return out;
+}
+const mergeBest = (a, b) => { const out = { ...a }; for (const [k, v] of Object.entries(b)) out[k] = Math.max(out[k] || 0, v); return out; };
+
+// levels = { rush: 10, sneak: 9 }
+function importProgress(room, seat, saved, levels, { merge }) {
+  if (!saved || typeof saved !== 'object') return;
+  const c = saved.couple || {};
+  const wallet = Math.min(MAX_WALLET, Math.max(0, parseInt(c.wallet, 10) || 0));
+  const upgrades = ids(c.upgrades, 'kitchen');
+  const decorOwned = ids(c.decorOwned, 'decor');
+  room.shop.wallet = merge ? Math.max(room.shop.wallet, wallet) : wallet;
+  room.shop.upgrades = [...new Set([...room.shop.upgrades, ...upgrades])];
+  room.shop.decorOwned = [...new Set([...room.shop.decorOwned, ...decorOwned])];
+  if (!room.shop.decor && decorOwned.includes(c.decor)) room.shop.decor = c.decor;
+  room.rushBest = mergeBest(room.rushBest, cleanBest(c.rushBest, levels.rush));
+  room.sneakBest = mergeBest(room.sneakBest, cleanBest(c.sneakBest, levels.sneak));
+
+  const me = saved.me || {};
+  const p = room.players[seat];
+  if (!p) return;
+  p.shop.owned = ids(me.owned, 'look');
+  const look = me.look || {};
+  for (const slot of ['color', 'hat', 'glasses']) {
+    const id = look[slot];
+    if (typeof id === 'string' && has(ITEMS, id) && ITEMS[id].slot === slot && (ITEMS[id].free || p.shop.owned.includes(id))) p.shop.look[slot] = id;
+  }
+}
+
+module.exports = { ITEMS, DEFAULT_LOOKS, newPlayerShopState, newRoomShopState, grant, buy, equip, hasUpgrade, importProgress };

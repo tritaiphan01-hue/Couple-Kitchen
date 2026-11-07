@@ -103,3 +103,34 @@ test('Split Kitchen runs in real time over sockets', async t => {
   const later = await nextState(a, s => s.game.clock > s1.game.clock + 400);
   assert.ok(later.game.clock > s1.game.clock);
 });
+
+test('saved progress comes back after a server restart, and rejoining never re-adds coins', async t => {
+  await new Promise(r => server.listen(0, r));
+  const url = `http://localhost:${server.address().port}`;
+  const a = connect(url, { transports: ['websocket'] });
+  const b = connect(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); server.close(); });
+  const saved = { couple: { wallet: 200, upgrades: ['burner3'], rushBest: { 1: 2 } }, me: { owned: ['hat_bow'], look: { hat: 'hat_bow' } } };
+
+  const firstState = nextState(a, s => s.room.shop.wallet === 200);
+  const { code } = await emit(a, 'room:create', { name: 'Tri', playerId: 'pa3', progress: saved });
+  const s0 = await firstState;
+  assert.deepStrictEqual(s0.room.shop.upgrades, ['burner3']);
+  assert.strictEqual(s0.room.players[0].look.hat, 'hat_bow');
+  assert.deepStrictEqual(s0.room.rushBest, { 1: 2 });
+
+  await emit(b, 'room:join', { code, name: 'Mai', playerId: 'pb3', progress: { couple: { wallet: 120 }, me: {} } });
+  assert.strictEqual((await emit(b, 'shop:buy', { id: 'burner3' })).error, 'already_owned');   // restored upgrade
+  const spent = nextState(a, s => s.room.shop.wallet === 50);
+  assert.ok((await emit(b, 'shop:buy', { id: 'bell' })).ok);                                   // 200 - 150
+  await spent;
+
+  // Mai's phone reconnects with an old saved copy (999 coins): it must not be merged again.
+  b.close();
+  const b2 = connect(url, { transports: ['websocket'] });
+  t.after(() => b2.close());
+  const back = nextState(a, s => s.room.players[1] && s.room.players[1].connected);
+  const re = await emit(b2, 'room:join', { code, name: 'Mai', playerId: 'pb3', progress: { couple: { wallet: 999 } } });
+  assert.strictEqual(re.seat, 1);
+  assert.strictEqual((await back).room.shop.wallet, 50, 'rejoining must not restore coins');
+});

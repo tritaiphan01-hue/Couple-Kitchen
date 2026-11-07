@@ -16,7 +16,8 @@ A cozy co-op cooking game for two, played online from your phones.
   - Kitchen: upgrades that make modes easier (third burner, sharp knife, non-stick pans, friendly bell, recipe notebook, soft slippers, quiet fridge, earplugs, cat treats) and decor (cherry blossom, garden, seaside).
   - My chef: your own chef's colour, hat and glasses. Your partner sees your look everywhere.
 - Difficulty keeps climbing so upgrades stay useful: Split Kitchen has **10 levels**, Midnight Snack **9 nights** (each map with a lighter and lighter sleeper), and Recipe Relay gets more clues and fewer steps as the evening goes on.
-- Coins and purchases last for the session (while the kitchen is open on the server). `START_COINS=500 npm start` gives new kitchens 500 coins for testing.
+- **Progress is saved on each phone** (localStorage): coins, upgrades, decor, unlocked levels and your chef's look. When you open a kitchen or join your partner's, the saved copies are merged (bigger wallet wins, owned items and stars combine), so a server restart or redeploy doesn't lose anything. Reconnecting to the same kitchen never merges again, so spent coins can't come back. Clearing the browser's site data on *both* phones resets progress.
+- `START_COINS=500 npm start` gives new kitchens 500 coins for testing.
 
 ## Languages & pantries
 - **English / Tiếng Việt** — tap the flag on the home screen or in the lobby. It defaults to Vietnamese when the phone's language is Vietnamese. Each partner can play in their own language in the same game.

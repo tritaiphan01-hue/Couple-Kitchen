@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;   // forget rooms idle for a day
 const MODES = { relay, rush, sneak };
 const TICK_MS = 250;
+const LEVEL_COUNTS = { rush: rush.LEVELS.length, sneak: sneak.LEVELS.length };
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -97,7 +98,7 @@ function attach(socket, room, seat) {
 }
 
 io.on('connection', socket => {
-  socket.on('room:create', ({ name, playerId } = {}, ack = () => {}) => {
+  socket.on('room:create', ({ name, playerId, progress } = {}, ack = () => {}) => {
     if (!playerId) return ack({ error: 'missing_id' });
     const code = newCode();
     const room = {
@@ -111,12 +112,13 @@ io.on('connection', socket => {
       lastActive: Date.now(),
     };
     rooms.set(code, room);
+    shop.importProgress(room, 0, progress, LEVEL_COUNTS, { merge: false });
     attach(socket, room, 0);
     ack({ code, seat: 0 });
     broadcast(room);
   });
 
-  socket.on('room:join', ({ code, name, playerId } = {}, ack = () => {}) => {
+  socket.on('room:join', ({ code, name, playerId, progress } = {}, ack = () => {}) => {
     code = String(code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) return ack({ error: 'no_room' });
@@ -125,6 +127,7 @@ io.on('connection', socket => {
       seat = room.players.findIndex(p => p === null);
       if (seat === -1) return ack({ error: 'room_full' });
       room.players[seat] = { id: playerId, name: cleanName(name, 'Plum'), socketId: null, connected: false, shop: shop.newPlayerShopState(seat) };
+      shop.importProgress(room, seat, progress, LEVEL_COUNTS, { merge: true });   // only for a new chef, never on rejoin
     } else if (name) {
       room.players[seat].name = cleanName(name, room.players[seat].name);
     }

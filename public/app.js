@@ -176,7 +176,20 @@
   });
   socket.on('disconnect', () => banner(t('reconnecting')));
   socket.on('kicked', code => { store.del('room'); state = null; toast(errText(code)); show('home'); });
-  socket.on('state', s => { prev = state; state = s; store.set('room', s.room.code); render(); });
+  socket.on('state', s => { prev = state; state = s; store.set('room', s.room.code); saveProgress(s.room); render(); });
+
+  // Keep a copy of the couple's progress on this phone so it survives server restarts.
+  function saveProgress(room) {
+    const me = room.players[room.seat];
+    if (!room.shop || !me) return;
+    store.set('progress', {
+      v: 1,
+      couple: { wallet: room.shop.wallet, upgrades: room.shop.upgrades, decorOwned: room.shop.decorOwned, decor: room.shop.decor, rushBest: room.rushBest, sneakBest: room.sneakBest },
+      me: { owned: me.owned, look: me.look },
+      savedAt: Date.now(),
+    });
+  }
+  const savedProgress = () => store.get('progress', null);
   socket.on('react', ({ emoji }) => { floatEmoji(emoji, emoji === '❤️' ? 9 : 4); sfx.heart(); buzz(20); });
 
   // ───────── Home ─────────
@@ -194,7 +207,7 @@
   }
   $('#create-btn').addEventListener('click', () => {
     sfx.tap();
-    socket.emit('room:create', { name: myName(), playerId }, res => {
+    socket.emit('room:create', { name: myName(), playerId, progress: savedProgress() }, res => {
       if (res.error) return toast(errText(res.error));
       history.replaceState(null, '', '?room=' + res.code);
     });
@@ -203,7 +216,7 @@
     sfx.tap();
     const code = codeInput.value.trim();
     if (code.length !== 4) { sfx.err(); return toast(t('codeLength')); }
-    socket.emit('room:join', { code, name: myName(), playerId }, res => {
+    socket.emit('room:join', { code, name: myName(), playerId, progress: savedProgress() }, res => {
       if (res.error) { sfx.err(); return toast(errText(res.error)); }
       history.replaceState(null, '', '?room=' + res.code);
     });

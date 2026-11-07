@@ -98,3 +98,39 @@ test('Recipe Relay gets harder through the evening, notebook gives a step', () =
     }
   }
 });
+
+test('saved progress is restored, merged between phones, and validated', () => {
+  const levels = { rush: 10, sneak: 9 };
+  const r = room();
+  r.rushBest = {}; r.sneakBest = {};
+  // Phone A opens the kitchen
+  shop.importProgress(r, 0, {
+    couple: { wallet: 300, upgrades: ['burner3', 'hat_bow', 'nope'], decorOwned: ['decor_sakura'], decor: 'decor_sakura', rushBest: { 1: 3, 2: 1, 99: 3, x: 2 }, sneakBest: { 1: 2 } },
+    me: { owned: ['hat_crown', 'burner3'], look: { color: 'color_rose', hat: 'hat_crown', glasses: 'glasses_cool' } },
+  }, levels, { merge: false });
+  assert.strictEqual(r.shop.wallet, 300);
+  assert.deepStrictEqual(r.shop.upgrades, ['burner3']);                 // look items / unknown ids dropped
+  assert.strictEqual(r.shop.decor, 'decor_sakura');
+  assert.deepStrictEqual(r.rushBest, { 1: 3, 2: 1 });                   // out-of-range levels dropped
+  assert.deepStrictEqual(r.players[0].shop.owned, ['hat_crown']);
+  assert.strictEqual(r.players[0].shop.look.hat, 'hat_crown');
+  assert.strictEqual(r.players[0].shop.look.color, 'color_honey');      // rose wasn't owned
+  assert.strictEqual(r.players[0].shop.look.glasses, 'glasses_none');
+
+  // Phone B joins with its own (slightly different) copy
+  shop.importProgress(r, 1, {
+    couple: { wallet: 250, upgrades: ['slippers'], rushBest: { 2: 3, 3: 1 }, sneakBest: { 4: 1 } },
+    me: { owned: ['hat_ears'], look: { hat: 'hat_ears' } },
+  }, levels, { merge: true });
+  assert.strictEqual(r.shop.wallet, 300);                               // larger wallet wins
+  assert.deepStrictEqual(r.shop.upgrades.sort(), ['burner3', 'slippers']);
+  assert.deepStrictEqual(r.rushBest, { 1: 3, 2: 3, 3: 1 });
+  assert.deepStrictEqual(r.sneakBest, { 1: 2, 4: 1 });
+  assert.strictEqual(r.players[1].shop.look.hat, 'hat_ears');
+  assert.strictEqual(r.players[0].shop.look.hat, 'hat_crown');          // A's look untouched
+
+  // Garbage is ignored safely
+  shop.importProgress(r, 1, 'lol', levels, { merge: true });
+  shop.importProgress(r, 1, { couple: { wallet: -5, upgrades: 'x' }, me: null }, levels, { merge: true });
+  assert.strictEqual(r.shop.wallet, 300);
+});
