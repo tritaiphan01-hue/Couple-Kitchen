@@ -20,7 +20,10 @@
       <header class="topbar topbar-home">
         <div class="icon-btn-spacer"></div>
         <div class="topbar-title"></div>
-        <button class="icon-btn lang-btn" aria-label="Language">🇬🇧</button>
+        <div class="topbar-right">
+          <button class="icon-btn music-btn" aria-label="Music">🎵</button>
+          <button class="icon-btn lang-btn" aria-label="Language">🇬🇧</button>
+        </div>
       </header>
       <div class="home-hero">
         <div class="steam"><span></span><span></span><span></span></div>
@@ -49,6 +52,7 @@
         <button class="icon-btn" id="leave-btn" aria-label="Leave kitchen">←</button>
         <div class="topbar-title" data-i18n="lobby.title">The Kitchen</div>
         <div class="topbar-right">
+          <button class="icon-btn music-btn" aria-label="Music">🎵</button>
           <button class="icon-btn lang-btn" aria-label="Language">🇬🇧</button>
           <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
         </div>
@@ -103,6 +107,7 @@
         <div class="topbar-title" id="relay-title"></div>
         <div class="topbar-right">
           <button class="icon-btn help-btn" data-mode="relay" aria-label="How to play">❓</button>
+          <button class="icon-btn music-btn" aria-label="Music">🎵</button>
           <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
         </div>
       </header>
@@ -148,6 +153,7 @@
         </div>
         <div class="topbar-right">
           <span class="rush-coins" id="rush-coins">💰 0</span>
+          <button class="icon-btn music-btn" aria-label="Music">🎵</button>
           <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
         </div>
       </header>
@@ -185,7 +191,10 @@
           <span id="sneak-night"></span>
           <span class="sneak-round" id="sneak-round"></span>
         </div>
-        <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+        <div class="topbar-right">
+          <button class="icon-btn music-btn" aria-label="Music">🎵</button>
+          <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+        </div>
       </header>
       <div class="noise">
         <span class="noise-face" id="noise-face">😴</span>
@@ -272,6 +281,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="i18n.js"></script>
+  <script src="music.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

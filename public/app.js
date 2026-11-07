@@ -39,6 +39,7 @@
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
       if (actx.state !== 'running') actx.resume();
+      if (window.Music) Music.attach(actx);
     } catch { /* audio unavailable */ }
   }
   ['pointerdown', 'touchend', 'keydown'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
@@ -80,6 +81,15 @@
     muted = !muted; store.set('muted', muted); syncMuteButtons(); sfx.tap();
   }));
   syncMuteButtons();
+
+  // Background music (separate from sound effects)
+  if (window.Music) Music.setEnabled(store.get('music', true));
+  function syncMusicButtons() { document.querySelectorAll('.music-btn').forEach(b => b.classList.toggle('off', !(window.Music && Music.enabled))); }
+  document.querySelectorAll('.music-btn').forEach(b => b.addEventListener('click', () => {
+    if (!window.Music) return;
+    Music.setEnabled(!Music.enabled); store.set('music', Music.enabled); syncMusicButtons(); unlockAudio();
+  }));
+  syncMusicButtons();
 
   // ───────── Language ─────────
   I18N.setLang(I18N.detectLang());
@@ -131,6 +141,7 @@
       window.scrollTo(0, 0);
     }
     document.body.dataset.mode = mode || screen;
+    if (window.Music) Music.setMood({ rush: 'rush', sneak: 'sneak' }[document.body.dataset.mode] || 'chill');
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = document.body.dataset.mode === 'relay' ? '#3A2820' : '#FFF4E6';
   }

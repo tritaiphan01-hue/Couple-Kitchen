@@ -634,3 +634,6 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 .howto-choice .choice.on { border-color: var(--tomato); box-shadow: 0 3px 0 var(--tomato); }
 .howto-choice small { font-size: .78rem; color: var(--cocoa-soft); font-weight: 700; }
 .btn-help { min-height: 40px; padding: 6px; font-size: .95rem; }
+
+.music-btn.off { opacity: .35; filter: grayscale(1); }
+.topbar-right .icon-btn { width: 36px; }
