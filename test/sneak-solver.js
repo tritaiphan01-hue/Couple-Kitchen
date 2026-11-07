@@ -26,7 +26,7 @@ function quietPath(level, from, to, avoid) {
 }
 
 // errands: per seat, list of station chars ('F','S','O','B','T') to use in order.
-function actionsFor(level, start, errands, avoidExtra = []) {
+function actionsFor(level, start, errands, avoidExtra = [], catPath = level.cat) {
   const out = [];
   let pos = start;
   for (const ch of errands) {
@@ -36,7 +36,7 @@ function actionsFor(level, start, errands, avoidExtra = []) {
       const t = { x: st.x + dx, y: st.y + dy };
       if (!sneak.walkable(level, t.x, t.y)) continue;
       if (avoidExtra.some(([ax, ay]) => ax === t.x && ay === t.y)) continue;   // spot taken by partner
-      const p = (t.x === pos.x && t.y === pos.y) ? [] : quietPath(level, pos, t, [...level.cat, ...avoidExtra]);
+      const p = (t.x === pos.x && t.y === pos.y) ? [] : quietPath(level, pos, t, [...catPath, ...avoidExtra]);
       if (p && (!best || p.length < best.length)) best = p;
     }
     if (!best) { out.push({ t: 'wait' }); return out; }   // only spot is taken: wait your turn
@@ -49,8 +49,8 @@ function actionsFor(level, start, errands, avoidExtra = []) {
 
 // Play a level: each round, re-plan from where each chef actually is. Seat 1
 // gives way (waits) when it would walk into seat 0, like a polite partner.
-function play(levelNo, errands, delays = [0, 0]) {
-  const g = sneak.createSneakGame(levelNo);
+function play(levelNo, errands, delays = [0, 0], upgrades = []) {
+  const g = sneak.createSneakGame(levelNo, upgrades);
   const level = sneak.LEVELS[levelNo - 1];
   const done = [0, 0];
   const waits = delays.slice();
@@ -61,7 +61,7 @@ function play(levelNo, errands, delays = [0, 0]) {
       const pre = Array(Math.min(waits[s], 3)).fill({ t: 'wait' });
       waits[s] -= pre.length;
       const other = g.players[1 - s];
-      return [...pre, ...actionsFor(level, g.players[s], errands[s].slice(done[s]), [[other.x, other.y]])].slice(0, sneak.STEPS_PER_ROUND);
+      return [...pre, ...actionsFor(level, g.players[s], errands[s].slice(done[s]), [[other.x, other.y]], g.catPath)].slice(0, sneak.STEPS_PER_ROUND);
     });
     // Give way: step through both plans together; whoever would walk into the other waits.
     const pos = [{ ...g.players[0] }, { ...g.players[1] }];
@@ -91,16 +91,19 @@ function play(levelNo, errands, delays = [0, 0]) {
   return g;
 }
 
-const SOLUTIONS = {
-  1: { errands: [['F', 'T'], ['S', 'T']] },
-  2: { errands: [['S', 'O', 'T'], ['F', 'O', 'T']] },
-  3: { errands: [['S', 'T', 'F', 'O', 'T'], ['F', 'B', 'T']] },
-};
+// Errands per map; night n uses map ((n - 1) % 3) + 1.
+const MAP_SOLUTIONS = [
+  { errands: [['F', 'T'], ['S', 'T']] },
+  { errands: [['S', 'O', 'T'], ['F', 'O', 'T']] },
+  { errands: [['S', 'T', 'F', 'O', 'T'], ['F', 'B', 'T']] },
+];
+const SOLUTIONS = {};
+sneak.LEVELS.forEach((_, i) => { SOLUTIONS[i + 1] = MAP_SOLUTIONS[i % MAP_SOLUTIONS.length]; });
 
 module.exports = { play, SOLUTIONS, actionsFor };
 
 if (require.main === module) {
-  for (const n of [1, 2, 3]) {
+  for (const n of sneak.LEVELS.map((_, i) => i + 1)) {
     for (const delays of [[0, 0], [0, 1], [1, 0], [0, 2], [2, 0], [0, 3], [3, 0]]) {
       const g = play(n, SOLUTIONS[n].errands, delays);
       const evs = (g.lastRound ? [] : []);

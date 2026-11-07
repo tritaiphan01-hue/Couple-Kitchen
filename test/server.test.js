@@ -53,6 +53,15 @@ test('two players can create, join, play and reconnect', async t => {
   assert.strictEqual(last.game.phase, 'results');
   assert.deepStrictEqual(last.game.dish.chefs, [0, 1]);   // nobody added ingredients → shared credit
   assert.strictEqual(last.room.stats.rounds, 1);
+  // The round paid into the shared wallet.
+  const reward = last.game.result.reward;
+  assert.ok(reward.total >= 10);
+  assert.strictEqual(last.room.shop.wallet, reward.total);
+  assert.strictEqual((await emit(a, 'shop:buy', { id: 'hat_crown' })).error, 'not_enough');
+  assert.strictEqual((await emit(a, 'shop:equip', { id: 'color_mint' })).error, 'not_owned');
+  const looked = nextState(b, s => s.room.players[0].look.color === 'color_plum');
+  assert.ok((await emit(a, 'shop:equip', { id: 'color_plum' })).ok);
+  await looked;                                        // partner sees the new look
 
   // Refresh / reconnect: a fresh socket with the same playerId gets the seat back.
   b.close();

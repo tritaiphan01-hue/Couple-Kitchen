@@ -72,6 +72,13 @@ const ACTIONS = {
 const NEGATABLE_TAGS = ['dairy', 'meat', 'seafood', 'spicy', 'sweet', 'sour', 'grain', 'protein', 'fruit', 'herb'];
 const TOTAL_TURNS = 8;
 const CLUES_PER_PLAYER = 3;
+// Difficulty climbs as the evening goes on: more clues to satisfy, then fewer steps.
+const TIERS = [
+  { fromRound: 1, turns: 8, clues: 3 },
+  { fromRound: 4, turns: 8, clues: 4 },
+  { fromRound: 7, turns: 7, clues: 4 },
+];
+const tierFor = round => TIERS.reduce((t, x, i) => (round >= x.fromRound ? i : t), 0);
 
 function shuffle(arr, rand = Math.random) {
   const a = arr.slice();
@@ -148,11 +155,11 @@ function clueKey(c) {
   return c.type;
 }
 
-function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random) {
+function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random, turns = TOTAL_TURNS, perPlayer = CLUES_PER_PLAYER) {
   const ingIds = market;
   const nIngs = 4 + Math.floor(rand() * 2);          // 4–5 ingredients
   const targetIngs = shuffle(ingIds, rand).slice(0, nIngs);
-  const nActs = TOTAL_TURNS - nIngs >= 3 ? 2 : 1;     // fits in 8 turns with room to spare
+  const nActs = turns - nIngs >= 3 ? 2 : 1;          // always fits in the round's steps
   const targetActs = shuffle(Object.keys(ACTIONS), rand).slice(0, nActs);
   const lastAction = targetActs[targetActs.length - 1];
 
@@ -164,7 +171,7 @@ function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random) {
   const chosen = [];
   const usedKeys = new Set();
   for (const c of pool) {
-    if (chosen.length >= CLUES_PER_PLAYER * 2) break;
+    if (chosen.length >= perPlayer * 2) break;
     const k = clueKey(c);
     if (usedKeys.has(k)) continue;
     usedKeys.add(k);
@@ -175,13 +182,15 @@ function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random) {
   return {
     dishType: dishKeys[Math.floor(rand() * dishKeys.length)],
     target: { ingredients: targetIngs, actions: targetActs },
-    cards: [clues.slice(0, CLUES_PER_PLAYER), clues.slice(CLUES_PER_PLAYER)],
+    cards: [clues.slice(0, Math.ceil(clues.length / 2)), clues.slice(Math.ceil(clues.length / 2))],
   };
 }
 
 // ---- Game state ----------------------------------------------------------
 
-function createRelayGame(round = 1, rand = Math.random) {
+function createRelayGame(round = 1, upgrades = [], rand = Math.random) {
+  const tier = tierFor(round);
+  const turns = TIERS[tier].turns + (upgrades.includes('notebook') ? 1 : 0);
   // Today's market, in a stable order (by catalogue position) so the pantry grid stays tidy.
   const all = Object.keys(INGREDIENTS);
   const pick = new Set(shuffle(all, rand).slice(0, MARKET_SIZE));
@@ -191,11 +200,12 @@ function createRelayGame(round = 1, rand = Math.random) {
     market,
     round,
     phase: 'playing',            // 'playing' | 'results'
-    turn: 0,                     // 0..TOTAL_TURNS-1
-    totalTurns: TOTAL_TURNS,
+    tier,
+    turn: 0,                     // 0..totalTurns-1
+    totalTurns: turns,
     starter: (round - 1) % 2,    // alternate who goes first each round
     pot: [],                     // [{kind, id, by}]
-    recipe: generateRecipe(market, rand),
+    recipe: generateRecipe(market, rand, turns, TIERS[tier].clues),
     result: null,
   };
 }
@@ -251,6 +261,7 @@ function viewFor(game, seat) {
   const v = {
     mode: 'relay',
     market: game.market,
+    tier: game.tier,
     round: game.round,
     phase: game.phase,
     turn: game.turn,
@@ -270,6 +281,6 @@ function viewFor(game, seat) {
 }
 
 module.exports = {
-  INGREDIENTS, DISH_TYPES, ACTIONS, TOTAL_TURNS, MARKET_SIZE,
+  INGREDIENTS, DISH_TYPES, ACTIONS, TOTAL_TURNS, MARKET_SIZE, TIERS, tierFor,
   createRelayGame, applyMove, viewFor, checkClue, generateRecipe, currentPlayer, dishInfo,
 };

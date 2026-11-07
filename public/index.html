@@ -62,6 +62,10 @@
 
       <div class="chefs" id="lobby-chefs"></div>
       <p class="lobby-hint" id="lobby-hint"></p>
+      <div class="wallet-row">
+        <div class="wallets" id="lobby-wallets"></div>
+        <button class="btn btn-small btn-shop" id="shop-btn" data-i18n="lobby.shop">🛒 Shop</button>
+      </div>
 
 
       <h2 class="section-title" data-i18n="lobby.modeTitle">Pick tonight's mode</h2>
@@ -219,6 +223,22 @@
       </div>
     </section>
 
+    <!-- SHOP -->
+    <section id="screen-shop" class="screen">
+      <header class="topbar">
+        <button class="icon-btn" id="shop-back" aria-label="Back">←</button>
+        <div class="topbar-title" data-i18n="shop.title">Shop</div>
+        <div class="icon-btn-spacer"></div>
+      </header>
+      <div class="wallets big" id="shop-wallets"></div>
+      <p class="shop-earn" data-i18n="shop.howEarn"></p>
+      <div class="shop-tabs">
+        <button class="shop-tab" data-tab="kitchen" data-i18n="shop.tab.kitchen">🍳 Kitchen</button>
+        <button class="shop-tab" data-tab="chef" data-i18n="shop.tab.chef">👩‍🍳 My chef</button>
+      </div>
+      <div class="shop-body" id="shop-body"></div>
+    </section>
+
     <!-- RESULTS -->
     <section id="screen-results" class="screen">
       <header class="topbar">
@@ -234,6 +254,7 @@
       </div>
       <div class="results-cards" id="results-cards"></div>
       <div class="results-target" id="results-target"></div>
+      <p class="reward" id="results-reward"></p>
       <div class="results-buttons">
         <button class="btn btn-primary" id="next-btn" data-i18n="results.again">🍲 Cook another</button>
         <button class="btn btn-ghost" id="results-lobby-btn" data-i18n="results.lobby">Back to kitchen</button>

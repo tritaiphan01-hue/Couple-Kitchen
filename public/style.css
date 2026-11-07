@@ -402,7 +402,7 @@ button.slot:active { transform: scale(.92); }
 .pantry-item .e { font-size: 1.4rem; line-height: 1.1; }
 .pantry-item .n { font-size: .58rem; font-weight: 800; color: var(--cocoa-soft); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
 
-.burners { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.burners { display: grid; grid-template-columns: repeat(var(--b, 2), 1fr); gap: 10px; }
 .burner { height: 88px; background: #3B3330 !important; border-color: #2B2320 !important; border-radius: 20px !important; }
 .burner .ring {
   position: absolute; width: 70px; height: 70px; border-radius: 50%;
@@ -455,8 +455,8 @@ body[data-mode="rush"] .toast { bottom: calc(84px + env(safe-area-inset-bottom))
 
 /* Ready screen */
 .rush-ready { display: flex; flex-direction: column; gap: 12px; padding-top: 6px; position: relative; }
-.level-chips { display: flex; gap: 8px; justify-content: center; }
-.level-chip { border: 2px solid var(--cocoa); background: var(--surface); border-radius: 99px; padding: 6px 14px; font-weight: 800; }
+.level-chips { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.level-chip { border: 2px solid var(--cocoa); background: var(--surface); border-radius: 99px; padding: 5px 11px; font-weight: 800; min-width: 38px; }
 .level-chip.on { background: var(--tomato); color: #fff; box-shadow: 0 3px 0 var(--cocoa); }
 .rush-tip { text-align: center; margin: 0; padding: 10px 12px; background: rgba(255,255,255,.6); border-radius: 14px; font-size: .95rem; }
 .role-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -574,3 +574,48 @@ body.lights-on { animation: lights 1.6s ease; }
 .intro-recipe { font-size: 1.4rem; margin-bottom: 8px; }
 .intro-card ul { text-align: left; padding-left: 20px; margin: 0 0 8px; display: flex; flex-direction: column; gap: 6px; font-size: .92rem; }
 .intro-legend { font-size: .85rem; color: var(--fg-soft); margin: 0 0 12px; }
+
+/* ───────── Wallets & shop ───────── */
+.wallet-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 14px; flex-wrap: wrap; }
+.wallets { display: flex; gap: 6px; flex-wrap: wrap; }
+.wallet { font-weight: 800; font-size: .9rem; padding: 5px 10px; border-radius: 99px; border: 2px solid var(--cocoa); background: var(--surface); color: var(--cocoa); white-space: nowrap; }
+.wallet.shared { background: var(--butter); }
+.wallets.big { justify-content: center; margin: 4px 0 6px; }
+.wallets.big .wallet { font-size: 1.05rem; padding: 7px 14px; }
+.btn-shop { background: var(--sage); color: #fff; }
+.shop-earn { text-align: center; color: var(--fg-soft); font-size: .85rem; margin: 0 0 10px; }
+.shop-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--surface-2); border: 3px solid var(--cocoa); border-radius: 99px; padding: 3px; margin-bottom: 10px; }
+.shop-tab { border: 0; background: transparent; border-radius: 99px; padding: 9px; font-weight: 800; font-size: .95rem; }
+.shop-tab.on { background: var(--tomato); color: #fff; box-shadow: 0 2px 0 var(--cocoa); }
+.shop-body { display: flex; flex-direction: column; gap: 8px; padding-bottom: 20px; }
+.shop-note { margin: 0; font-size: .85rem; color: var(--fg-soft); text-align: center; }
+.shop-sec { margin: 8px 0 0; font-family: var(--font-head); font-size: 1.05rem; }
+.shop-item { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 2px solid var(--line); border-radius: 16px; padding: 8px 10px; }
+.shop-item.using { border-color: var(--sage); box-shadow: 0 0 0 2px var(--sage); }
+.si-e { font-size: 1.8rem; width: 44px; height: 44px; display: grid; place-items: center; background: var(--surface-2); border-radius: 12px; flex: none; }
+.si-text { flex: 1; min-width: 0; }
+.si-name { font-weight: 800; }
+.si-desc { font-size: .8rem; color: var(--fg-soft); }
+.si-btn { flex: none; min-width: 84px; padding: 7px 10px !important; font-size: .9rem !important; }
+.si-btn.buy { background: var(--butter); }
+.si-btn.use { background: var(--surface); }
+.si-btn.owned, .si-btn.using { background: var(--sage); color: #fff; opacity: 1 !important; }
+.shop-preview { display: flex; justify-content: center; }
+.shop-preview svg { width: 120px; height: 120px; }
+.reward { text-align: center; font-weight: 800; color: var(--butter); margin: 0 0 10px; }
+.intro-tier { margin: -4px 0 8px; color: var(--fg-soft); }
+
+/* Recipe Relay: 4-clue cards later in the evening */
+.many-clues .pot-area { height: 104px; }
+.many-clues .pot { transform: scale(.85); transform-origin: bottom center; }
+.many-clues .secret-card li { font-size: .92rem; }
+
+/* ───────── Decor (bought in the shop, shared by the kitchen) ───────── */
+body[data-decor="decor_sakura"]:is([data-mode="lobby"], [data-mode="shop"], [data-mode="home"]) { --bg: #FFE8EF; background: radial-gradient(circle at 20% 10%, rgba(255,182,206,.7) 0 8%, transparent 9%), radial-gradient(circle at 85% 30%, rgba(255,182,206,.6) 0 6%, transparent 7%), radial-gradient(circle at 60% 80%, rgba(255,182,206,.5) 0 7%, transparent 8%), #FFE8EF; }
+body[data-decor="decor_garden"]:is([data-mode="lobby"], [data-mode="shop"], [data-mode="home"]) { --bg: #E6F4E1; background: repeating-linear-gradient(135deg, rgba(143,185,150,.18) 0 18px, transparent 18px 36px), #E6F4E1; }
+body[data-decor="decor_ocean"]:is([data-mode="lobby"], [data-mode="shop"], [data-mode="home"]) { --bg: #E2F1FB; background: radial-gradient(120% 40% at 50% 110%, rgba(125,183,240,.45), transparent 70%), #E2F1FB; }
+body[data-decor="decor_sakura"][data-mode="rush"] { --bg: #FFD9E4; background: repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 14px, transparent 14px 28px), #FFD9E4; }
+body[data-decor="decor_garden"][data-mode="rush"] { --bg: #D6EDCF; background: repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 14px, transparent 14px 28px), #D6EDCF; }
+body[data-decor="decor_ocean"][data-mode="rush"] { --bg: #CFE6F7; background: repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 14px, transparent 14px 28px), #CFE6F7; }
+body[data-decor="decor_sakura"] .fridge { background: linear-gradient(180deg, #FFF0F5, #FFD6E3); }
+body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0F8FF, #CFE6F7); }

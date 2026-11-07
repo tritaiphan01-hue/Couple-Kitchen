@@ -5,6 +5,7 @@ const { Server } = require('socket.io');
 const relay = require('./relay');
 const rush = require('./rush');
 const sneak = require('./sneak');
+const shop = require('./shop');
 
 const PORT = process.env.PORT || 3000;
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000;   // forget rooms idle for a day
@@ -15,6 +16,7 @@ const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 app.get('/api/catalog', (_req, res) => res.json({
+  shop: shop.ITEMS,
   ingredients: relay.INGREDIENTS, dishTypes: relay.DISH_TYPES, actions: relay.ACTIONS,
   rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES },
   sneak: { ingredients: sneak.INGREDIENTS },
@@ -54,7 +56,8 @@ function publicRoom(room, seat) {
     code: room.code,
     seat,
     screen: room.game ? 'game' : 'lobby',
-    players: room.players.map(p => (p ? { name: p.name, connected: p.connected } : null)),
+    players: room.players.map(p => (p ? { name: p.name, connected: p.connected, owned: p.shop.owned, look: p.shop.look } : null)),
+    shop: { wallet: room.shop.wallet, upgrades: room.shop.upgrades, decorOwned: room.shop.decorOwned, decor: room.shop.decor },
     stats: room.stats,
     rushBest: room.rushBest,
     sneakBest: room.sneakBest,
@@ -79,6 +82,7 @@ function recordRound(room) {
   // Store chef *names* with the dish so the recap still reads right if someone leaves.
   room.stats.dishes.push({ dish: relay.dishInfo(g), names: names(room), stars: g.result.stars });
   if (room.stats.dishes.length > 20) room.stats.dishes.shift();
+  g.result.reward = shop.grant(room, 10 + g.result.stars * 10);
 }
 
 function attach(socket, room, seat) {
@@ -98,7 +102,8 @@ io.on('connection', socket => {
     const code = newCode();
     const room = {
       code,
-      players: [{ id: playerId, name: cleanName(name, 'Honey'), socketId: null, connected: false }, null],
+      players: [{ id: playerId, name: cleanName(name, 'Honey'), socketId: null, connected: false, shop: shop.newPlayerShopState(0) }, null],
+      shop: shop.newRoomShopState(),
       game: null,
       stats: { rounds: 0, stars: 0, dishes: [] },
       rushBest: {},              // level → best stars in Split Kitchen
@@ -119,7 +124,7 @@ io.on('connection', socket => {
     if (seat === -1) {
       seat = room.players.findIndex(p => p === null);
       if (seat === -1) return ack({ error: 'room_full' });
-      room.players[seat] = { id: playerId, name: cleanName(name, 'Plum'), socketId: null, connected: false };
+      room.players[seat] = { id: playerId, name: cleanName(name, 'Plum'), socketId: null, connected: false, shop: shop.newPlayerShopState(seat) };
     } else if (name) {
       room.players[seat].name = cleanName(name, room.players[seat].name);
     }
@@ -154,9 +159,10 @@ io.on('connection', socket => {
     if (!room) return ack({ error: 'no_room' });
     if (!MODES[mode]) return ack({ error: 'mode_soon' });
     if (!room.players[0] || !room.players[1]) return ack({ error: 'need_partner' });
-    room.game = mode === 'rush' ? rush.createRushGame(maxUnlocked(room, 'rush'))
-      : mode === 'sneak' ? sneak.createSneakGame(maxUnlocked(room, 'sneak'))
-      : relay.createRelayGame(room.stats.rounds + 1);
+    const up = room.shop.upgrades;
+    room.game = mode === 'rush' ? rush.createRushGame(maxUnlocked(room, 'rush'), undefined, up)
+      : mode === 'sneak' ? sneak.createSneakGame(maxUnlocked(room, 'sneak'), up)
+      : relay.createRelayGame(room.stats.rounds + 1, up);
     ack({ ok: true });
     broadcast(room);
   });
@@ -181,6 +187,7 @@ io.on('connection', socket => {
     if (wasPlaying && g.phase !== 'planning') {
       room.sneakBest[g.level] = Math.max(room.sneakBest[g.level] || 0, g.result.stars);
       g.result.unlocked = maxUnlocked(room, 'sneak');
+      g.result.reward = shop.grant(room, g.result.won ? 30 + g.result.stars * 15 + g.level * 5 : 5);
     }
     ack({ ok: true });
     broadcast(room);
@@ -192,7 +199,7 @@ io.on('connection', socket => {
     if (!g || g.mode !== 'sneak') return;
     level = level | 0;
     if (level < 1 || level > maxUnlocked(room, 'sneak')) return;
-    room.game = sneak.createSneakGame(level);
+    room.game = sneak.createSneakGame(level, room.shop.upgrades);
     broadcast(room);
   });
 
@@ -203,7 +210,7 @@ io.on('connection', socket => {
     if (!g || g.mode !== 'rush' || (g.phase !== 'ready' && g.phase !== 'results')) return;
     level = level | 0;
     if (level < 1 || level > maxUnlocked(room, 'rush')) return;
-    room.game = rush.createRushGame(level, g.roles);
+    room.game = rush.createRushGame(level, g.roles, room.shop.upgrades);
     broadcast(room);
   });
 
@@ -220,7 +227,7 @@ io.on('connection', socket => {
   socket.on('relay:next', () => {
     const room = rooms.get(socket.data.code);
     if (!room || !room.game || room.game.phase !== 'results') return;
-    room.game = relay.createRelayGame(room.stats.rounds + 1);
+    room.game = relay.createRelayGame(room.stats.rounds + 1, room.shop.upgrades);
     broadcast(room);
   });
 
@@ -228,6 +235,26 @@ io.on('connection', socket => {
     const room = rooms.get(socket.data.code);
     if (!room) return;
     room.game = null;
+    broadcast(room);
+  });
+
+  // ---- Shop ----
+  socket.on('shop:buy', ({ id } = {}, ack = () => {}) => {
+    const room = rooms.get(socket.data.code);
+    if (!room) return ack({ error: 'no_room' });
+    const res = shop.buy(room, socket.data.seat, id);
+    if (res.error) return ack({ error: res.error });
+    ack({ ok: true });
+    socket.to(room.code).emit('shop:bought', { seat: socket.data.seat, id });
+    broadcast(room);
+  });
+
+  socket.on('shop:equip', ({ id } = {}, ack = () => {}) => {
+    const room = rooms.get(socket.data.code);
+    if (!room) return ack({ error: 'no_room' });
+    const res = shop.equip(room, socket.data.seat, id);
+    if (res.error) return ack({ error: res.error });
+    ack({ ok: true });
     broadcast(room);
   });
 
@@ -270,6 +297,7 @@ setInterval(() => {
     if (g.phase === 'results') {
       room.rushBest[g.level] = Math.max(room.rushBest[g.level] || 0, g.result.stars);
       g.result.unlocked = maxUnlocked(room, 'rush');
+      g.result.reward = shop.grant(room, Math.floor(g.result.coins / 2) + g.result.stars * 15);
     }
     if (g.phase !== 'ready' || before !== g.phase) broadcast(room);
   }

@@ -7,8 +7,8 @@ const plan = (g, seat, steps) => assert.strictEqual(sneak.act(g, seat, { type: '
 const lockBoth = g => { sneak.act(g, 0, { type: 'lock' }); sneak.act(g, 1, { type: 'lock' }); };
 const W = { t: 'wait' };
 
-test('every night can be won within par by a simple strategy', () => {
-  for (const n of [1, 2, 3]) {
+test('all 9 nights can be won within par by a simple strategy', () => {
+  for (const n of sneak.LEVELS.map((_, i) => i + 1)) {
     for (const delays of [[0, 0], [0, 1], [1, 0]]) {
       const g = play(n, SOLUTIONS[n].errands, delays);
       assert.strictEqual(g.phase, 'won', `night ${n} ${delays}: ${g.result && g.result.reason}`);
@@ -89,7 +89,7 @@ test('holding the fridge door together is quieter', () => {
   L.sources = { F: ['cheese', 'bread'] }; L.recipe = ['cheese:raw', 'bread:raw']; L.cat = [[2, 3]];
   sneak.LEVELS.push(L);
   try {
-    const h = sneak.createSneakGame(4);
+    const h = sneak.createSneakGame(sneak.LEVELS.length);
     h.players[0] = { x: 1, y: 1, hand: null }; h.players[1] = { x: 3, y: 1, hand: null };
     plan(h, 0, [{ t: 'use', x: 2, y: 1 }]); plan(h, 1, [{ t: 'use', x: 2, y: 1 }]); lockBoth(h);
     const st = h.lastRound.steps[0];

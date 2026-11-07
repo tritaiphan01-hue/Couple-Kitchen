@@ -69,8 +69,19 @@
   }));
 
   // ───────── Chef blob SVG ─────────
-  function chefSVG(seat, mood = 'happy') {
-    const [c, d] = SEAT_COLORS[seat];
+  // A chef wears whatever its owner picked in the shop (colour, hat, glasses).
+  function lookOf(seat) {
+    const p = state && state.room && state.room.players[seat];
+    return p && p.look ? p.look : { color: seat ? 'color_plum' : 'color_honey', hat: 'hat_chef', glasses: 'glasses_none' };
+  }
+  function chefSVG(seat, mood = 'happy', look = lookOf(seat)) {
+    const items = (catalog && catalog.shop) || {};
+    const [c, d] = (items[look.color] && items[look.color].value) || SEAT_COLORS[seat];
+    const hat = look.hat && look.hat !== 'hat_chef' && items[look.hat]
+      ? `<text x="50" y="${look.hat === 'hat_ears' ? 40 : 34}" font-size="${look.hat === 'hat_ears' ? 40 : 34}" text-anchor="middle">${items[look.hat].emoji}</text>`
+      : '<path d="M30 22 Q30 6 50 8 Q70 6 70 22 Q82 18 80 30 Q78 38 70 36 H30 Q22 38 20 30 Q18 18 30 22Z" fill="#fff" stroke="#4A3428" stroke-width="3.5"/>';
+    const glasses = look.glasses && look.glasses !== 'glasses_none' && items[look.glasses]
+      ? `<text x="50" y="59" font-size="30" text-anchor="middle">${items[look.glasses].emoji}</text>` : '';
     const mouth = {
       happy: '<path d="M40 60 Q50 69 60 60" stroke="#4A3428" stroke-width="4" fill="none" stroke-linecap="round"/>',
       sleepy: '<path d="M43 62 H57" stroke="#4A3428" stroke-width="4" stroke-linecap="round"/>',
@@ -80,13 +91,14 @@
       : '<circle cx="38" cy="50" r="4.5" fill="#4A3428"/><circle cx="62" cy="50" r="4.5" fill="#4A3428"/>';
     return `<svg viewBox="0 0 100 100" aria-hidden="true">
       <ellipse cx="50" cy="94" rx="30" ry="5" fill="rgba(0,0,0,.15)"/>
-      <path d="M30 22 Q30 6 50 8 Q70 6 70 22 Q82 18 80 30 Q78 38 70 36 H30 Q22 38 20 30 Q18 18 30 22Z" fill="#fff" stroke="#4A3428" stroke-width="3.5"/>
       <rect x="18" y="32" width="64" height="58" rx="30" fill="${c}" stroke="#4A3428" stroke-width="3.5"/>
       <path d="M32 70 H68 V86 Q50 94 32 86Z" fill="#fff" stroke="#4A3428" stroke-width="3" opacity=".95"/>
       <path d="M44 70 V64 H56 V70" fill="none" stroke="${d}" stroke-width="3"/>
       ${eyes}
       <circle cx="30" cy="58" r="5" fill="#E85D4A" opacity=".35"/><circle cx="70" cy="58" r="5" fill="#E85D4A" opacity=".35"/>
       ${mouth}
+      ${hat}
+      ${glasses}
     </svg>`;
   }
 
@@ -225,6 +237,7 @@
       : !partner.connected ? t('lobby.hintAway', { name: partner.name }) : t('lobby.hintReady');
     document.querySelectorAll('.mode-card').forEach(b => (b.disabled = !partner));
 
+    if (catalog) renderWallets($('#lobby-wallets'));
     const s = room.stats;
     const recap = $('#lobby-recap');
     recap.replaceChildren();
@@ -275,7 +288,8 @@
     if (selection && selection.kind === 'ingredient' && inPot.has(selection.id)) selection = null;
     if (!mine) selection = null;
 
-    $('#relay-title').textContent = t('relay.title', { dish: I18N.dishTypeName(g.dishType), round: g.round });
+    $('#relay-title').textContent = `${t('relay.title', { dish: I18N.dishTypeName(g.dishType), round: g.round })} ${'🌶️'.repeat(g.tier + 1)}`;
+    $('#screen-relay').classList.toggle('many-clues', g.myCard.length > 3);
     const bannerEl = $('#turn-banner');
     bannerEl.classList.toggle('mine', mine);
     bannerEl.textContent = mine
@@ -369,6 +383,7 @@
     )));
     const items = [...g.target.ingredients.map(I18N.ingEmoji), ...g.target.actions.map(I18N.actEmoji)].join(' ');
     $('#results-target').textContent = t('results.secret', { items });
+    $('#results-reward').textContent = g.result.reward ? t('reward', g.result.reward) : '';
 
     if (quiet) return;
     const justFinished = !(prev && prev.game && prev.game.phase === 'results' && prev.game.round === g.round);
@@ -416,9 +431,9 @@
     b.addEventListener('click', () => onTap(b));
     return b;
   };
-  function maxUnlocked(room) {
+  function maxUnlocked(room, total = 10, key = 'rushBest') {
     let n = 1;
-    while (n < 3 && ((room.rushBest || {})[n] || 0) >= 1) n++;
+    while (n < total && ((room[key] || {})[n] || 0) >= 1) n++;
     return n;
   }
 
@@ -437,9 +452,9 @@
     if (g.phase === 'ready' || g.phase === 'countdown') {
       const unlocked = maxUnlocked(room);
       const panel = el('div', { class: 'rush-ready' },
-        el('div', { class: 'level-chips' }, [1, 2, 3].map(n => tapBtn('level-chip' + (n === g.level ? ' on' : ''),
+        el('div', { class: 'level-chips' }, Array.from({ length: g.levelCount }, (_, i) => i + 1).map(n => tapBtn('level-chip' + (n === g.level ? ' on' : ''),
           () => { if (n <= unlocked) { sfx.tap(); socket.emit('rush:level', { level: n }); } },
-          n <= unlocked ? t('rush.level', { n }) : `🔒 ${n}`))),
+          n <= unlocked ? (n === g.level ? t('rush.level', { n }) : String(n)) : `🔒${n}`))),
         el('p', { class: 'rush-tip' }, t('rush.tips')[g.level - 1]),
         el('div', { class: 'role-cards' }, [0, 1].map(seat => {
           const role = g.roles[seat];
@@ -475,7 +490,7 @@
         el('div', { class: 'rush-pantry' }, pantryIds.map(id => tapBtn('slot pantry-item', b => { sfx.tap(); buzz(6); rushSend({ type: 'pantry', ing: id }, b); },
           el('span', { class: 'e' }, I18N.rushIng(id).emoji), el('span', { class: 'n' }, I18N.rushIng(id).name[I18N.lang])))),
         el('div', { class: 'kit-label' }, t('rush.stove')),
-        el('div', { class: 'burners' }, g.burners.map((_, i) => tapBtn('slot burner', b => { sfx.tap(); rushSend({ type: 'burner', i }, b); },
+        el('div', { class: 'burners', style: `--b:${g.burners.length}` }, g.burners.map((_, i) => tapBtn('slot burner', b => { sfx.tap(); rushSend({ type: 'burner', i }, b); },
           el('span', { class: 'ring' }), el('span', { class: 'content' })))),
         el('div', { class: 'kit-label' }, t('rush.counterTo', { name: partnerName })),
         counter, handRow));
@@ -530,6 +545,7 @@
     const ids = g.orders.map(o => o.id).join(',');
     if (ids !== rushUI.orderIds) {
       rushUI.orderIds = ids;
+      $('#rush-orders').style.gridTemplateColumns = `repeat(${Math.max(3, cfg.maxOrders || 3)}, 1fr)`;
       $('#rush-orders').replaceChildren(...g.orders.map(o => {
         const d = I18N.rushDish(o.dish);
         const tk = el('div', { class: 'ticket', 'data-id': o.id });
@@ -683,11 +699,13 @@
     else lines.push(t('rush.funnyPerfect'));
     if (st.passed[0] !== st.passed[1]) lines.push(t('rush.funnyPass', { name: playerName(st.passed[0] > st.passed[1] ? 0 : 1) }));
     const unlocked = r.unlocked || maxUnlocked(room);
-    if (r.level >= 3 && r.stars > 0) lines.push(t('rush.allDone'));
-    else if (unlocked <= r.level && r.level < 3) lines.push(t('rush.needStar'));
+    const levels = g.levelCount || 10;
+    if (r.level >= levels && r.stars > 0) lines.push(t('rush.allDone'));
+    else if (unlocked <= r.level && r.level < levels) lines.push(t('rush.needStar'));
+    if (r.reward) lines.push(t('reward', r.reward));
     $('#rr-stats').replaceChildren(...lines.map(l => el('div', {}, l)));
     const next = $('#rr-next');
-    next.hidden = !(r.level < 3 && unlocked > r.level);
+    next.hidden = !(r.level < levels && unlocked > r.level);
     next.textContent = t('rush.next', { n: r.level + 1 });
 
     const justFinished = !(prev && prev.game && prev.game.mode === 'rush' && prev.game.phase === 'results');
@@ -806,7 +824,7 @@
     const me = g.me, place = sneakUI.place;
     const planning = g.phase === 'planning' && !sneakUI.animating;
 
-    $('#sneak-night').textContent = t('sneak.night', { n: g.level });
+    $('#sneak-night').textContent = `${t('sneak.night', { n: g.level })} · ${'💤'.repeat(3 - g.tier)}`;
     $('#sneak-round').textContent = t('sneak.round', { r: Math.min(g.round, g.maxRounds), max: g.maxRounds });
 
     // Chefs, cat, light
@@ -942,6 +960,7 @@
     box.replaceChildren(el('div', { class: 'intro-card' },
       el('div', { class: 'intro-snack' }, g.snack.emoji),
       el('h2', {}, t('sneak.introTitle', { n: g.level, snack: g.snack.name[I18N.lang] })),
+      el('p', { class: 'intro-tier' }, `${'💤'.repeat(3 - g.tier)} ${t('sneak.tiers')[g.tier]}`),
       el('div', { class: 'intro-recipe' }),
       el('ul', {}, t('sneak.rules').map(r => el('li', {}, r))),
       el('p', { class: 'intro-legend' }, t('sneak.legend')),
@@ -986,11 +1005,85 @@
     if (!lines.length) lines.push(t('sneak.statQuiet'));
     const unlocked = r.unlocked || 1;
     if (r.won && r.last) lines.push(t('sneak.allDone'));
-    else if (!r.won && unlocked <= r.level && r.level < 3) lines.push(t('sneak.needStar'));
+    else if (!r.won && unlocked <= r.level && r.level < g.levelCount) lines.push(t('sneak.needStar'));
+    if (r.reward) lines.push(t('reward', r.reward));
     $('#sr-stats').replaceChildren(...lines.map(l => el('div', {}, l)));
     const next = $('#sr-next');
-    next.hidden = !(r.level < 3 && unlocked > r.level);
+    next.hidden = !(r.level < g.levelCount && unlocked > r.level);
     next.textContent = t('sneak.next', { n: r.level + 1 });
+  }
+
+  // ───────── Shop & wallets ─────────
+  let shopOpen = false;
+  let shopTab = 'kitchen';
+  const itemName = (id) => { const it = catalog && catalog.shop[id]; return it ? `${it.emoji} ${it.name[I18N.lang]}` : id; };
+
+  function renderWallets(box, big = false) {
+    box.replaceChildren(el('span', { class: 'wallet shared' }, t('wallet.shared', { n: state.room.shop.wallet })));
+    box.classList.toggle('big', big);
+  }
+
+  $('#shop-btn').addEventListener('click', () => { sfx.tap(); shopOpen = true; render(true); });
+  $('#shop-back').addEventListener('click', () => { sfx.tap(); shopOpen = false; render(true); });
+  document.querySelectorAll('.shop-tab').forEach(b => b.addEventListener('click', () => { sfx.tap(); shopTab = b.dataset.tab; renderShop(); }));
+
+  function shopAction(type, id) {
+    socket.emit(type, { id }, res => {
+      if (res && res.error) { sfx.err(); toast(errText(res.error), 1600); return; }
+      if (type === 'shop:buy') { sfx.ding(); buzz([20, 30, 20]); floatEmoji(catalog.shop[id].emoji, 5); toast(t('shop.boughtMe', { item: itemName(id) }), 1600); }
+      else sfx.tap();
+    });
+  }
+  socket.on('shop:bought', ({ seat, id }) => { sfx.ding(); toast(t('shop.bought', { name: playerName(seat), item: itemName(id) }), 2200); });
+
+  function shopCard(id, it, { state: st, onTap }) {
+    const card = el('div', { class: 'shop-item' + (st === 'using' ? ' using' : '') },
+      el('div', { class: 'si-e' }, it.emoji),
+      el('div', { class: 'si-text' }, el('div', { class: 'si-name' }, it.name[I18N.lang]), it.desc[I18N.lang] ? el('div', { class: 'si-desc' }, it.desc[I18N.lang]) : null));
+    const label = st === 'buy' ? `💰 ${it.price}`
+      : st === 'owned' ? t('shop.owned') : st === 'use' ? t('shop.use') : t('shop.using');
+    const btn = el('button', { class: 'btn btn-small si-btn ' + st, disabled: st === 'owned' || st === 'using' }, label);
+    btn.addEventListener('click', onTap);
+    card.append(btn);
+    return card;
+  }
+
+  function renderShop() {
+    if (!catalog || !state) return;
+    const room = state.room, me = room.players[room.seat];
+    renderWallets($('#shop-wallets'), true);
+    document.querySelectorAll('.shop-tab').forEach(b => b.classList.toggle('on', b.dataset.tab === shopTab));
+    const body = $('#shop-body');
+    body.replaceChildren();
+    const items = Object.entries(catalog.shop);
+    const section = (title, list) => { if (list.length) body.append(el('h3', { class: 'shop-sec' }, title), ...list); };
+
+    if (shopTab === 'kitchen') {
+      body.append(el('p', { class: 'shop-note' }, t('shop.sharedNote')));
+      for (const mode of ['rush', 'sneak', 'relay']) {
+        section(t('shop.sec.' + mode), items.filter(([, it]) => it.kind === 'kitchen' && it.mode === mode).map(([id, it]) =>
+          shopCard(id, it, { state: room.shop.upgrades.includes(id) ? 'owned' : 'buy', onTap: () => shopAction('shop:buy', id) })));
+      }
+      const decor = items.filter(([, it]) => it.kind === 'decor').map(([id, it]) => {
+        const owned = room.shop.decorOwned.includes(id);
+        return shopCard(id, it, { state: room.shop.decor === id ? 'using' : owned ? 'use' : 'buy', onTap: () => shopAction(owned ? 'shop:equip' : 'shop:buy', id) });
+      });
+      decor.unshift(shopCard('decor_none', { emoji: '🏠', name: { en: t('shop.noDecor'), vi: t('shop.noDecor') }, desc: { en: '', vi: '' } },
+        { state: room.shop.decor ? 'use' : 'using', onTap: () => shopAction('shop:equip', 'decor_none') }));
+      section(t('shop.sec.decor'), decor);
+    } else {
+      body.append(el('p', { class: 'shop-note' }, t('shop.mineNote')));
+      const preview = el('div', { class: 'shop-preview' });
+      preview.innerHTML = chefSVG(room.seat, 'happy');
+      body.append(preview);
+      for (const slot of ['color', 'hat', 'glasses']) {
+        section(t('shop.sec.' + slot), items.filter(([, it]) => it.kind === 'look' && it.slot === slot).map(([id, it]) => {
+          const owned = it.free || (me && me.owned.includes(id));
+          const using = me && me.look[slot] === id;
+          return shopCard(id, it, { state: using ? 'using' : owned ? 'use' : 'buy', onTap: () => shopAction(owned ? 'shop:equip' : 'shop:buy', id) });
+        }));
+      }
+    }
   }
 
   // ───────── Main render ─────────
@@ -1004,7 +1097,10 @@
     banner(!socket.connected ? t('reconnecting')
       : partner && !partner.connected && room.screen === 'game' ? t('partnerAway', { name: partner.name }) : '');
 
+    document.body.dataset.decor = (room.shop && room.shop.decor) || '';
+    if (!game && shopOpen) { show('shop'); renderShop(); return; }
     if (!game) { show('lobby'); renderLobby(); return; }
+    shopOpen = false;
     if (!catalog) return;  // wait for ingredient data
     if (game.mode === 'sneak') {
       // Let the last round finish playing out before showing the results.

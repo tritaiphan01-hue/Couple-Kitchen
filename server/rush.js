@@ -64,8 +64,32 @@ const LEVELS = [
   { durationMs: 150000, maxOrders: 3, spawnMs: 12000, patienceMs: 60000, cookMs: 5000, burnMs: 9000,  chopTaps: 5, stars: [70, 150, 230] },
   { durationMs: 180000, maxOrders: 3, spawnMs: 9000,  patienceMs: 55000, cookMs: 6000, burnMs: 7000,  chopTaps: 5, stars: [100, 220, 340] },
 ];
+// Levels 4–10 keep the level-3 menu but get steadily faster and less forgiving.
+for (let n = 4; n <= 10; n++) {
+  const k = n - 3;
+  LEVELS.push({
+    durationMs: 180000,
+    maxOrders: n >= 6 ? 4 : 3,
+    spawnMs: Math.max(5500, 9000 - k * 500),
+    patienceMs: Math.max(38000, 55000 - k * 2500),
+    cookMs: 6000,
+    burnMs: Math.max(4500, 7000 - k * 350),
+    chopTaps: n >= 8 ? 6 : 5,
+    stars: [100 + k * 20, 220 + k * 35, 340 + k * 50],
+  });
+  LEVEL_DISHES.push(LEVEL_DISHES[2]);
+}
 
-const BURNERS = 2;
+// Kitchen upgrades bought in the shop tweak a level's numbers.
+function applyUpgrades(base, upgrades = []) {
+  const c = { ...base, burners: 2 };
+  if (upgrades.includes('burner3')) c.burners = 3;
+  if (upgrades.includes('sharpKnife')) c.chopTaps = Math.max(2, c.chopTaps - 2);
+  if (upgrades.includes('nonstick')) c.burnMs = Math.round(c.burnMs * 1.5);
+  if (upgrades.includes('bell')) c.patienceMs = Math.round(c.patienceMs * 1.2);
+  return c;
+}
+
 const COUNTER_SLOTS = 4;
 const PLATE_MAX = 4;
 const COUNTDOWN_MS = 3000;
@@ -90,8 +114,9 @@ const itemKey = (item, level) => `${item.ing}:${itemState(item, level)}`;
 
 // ---- Game ----------------------------------------------------------------
 
-function createRushGame(levelNo = 1, roles = ['cook', 'prep']) {
+function createRushGame(levelNo = 1, roles = ['cook', 'prep'], upgrades = []) {
   const level = Math.min(Math.max(1, levelNo | 0), LEVELS.length);
+  const config = applyUpgrades(LEVELS[level - 1], upgrades);
   return {
     mode: 'rush',
     level,
@@ -103,7 +128,9 @@ function createRushGame(levelNo = 1, roles = ['cook', 'prep']) {
     lastTick: 0,
     running: false,
     hands: [null, null],
-    burners: Array.from({ length: BURNERS }, () => ({ item: null, since: 0 })),
+    config,
+    upgrades: upgrades.slice(),
+    burners: Array.from({ length: config.burners }, () => ({ item: null, since: 0 })),
     counter: Array.from({ length: COUNTER_SLOTS }, () => null),   // {item, by}
     board: { item: null, taps: 0 },
     plate: [],
@@ -118,7 +145,7 @@ function createRushGame(levelNo = 1, roles = ['cook', 'prep']) {
   };
 }
 
-const cfg = game => LEVELS[game.level - 1];
+const cfg = game => game.config;
 
 function pushEvent(game, ev) {
   game.events.push({ id: ++game.eventSeq, ...ev });
@@ -347,7 +374,9 @@ function viewFor(game, seat) {
     countdownLeft: game.phase === 'countdown' ? Math.max(0, game.countdownEnd - Date.now()) : 0,
     clock: game.clock,
     running: game.running,
-    config: { durationMs: c.durationMs, cookMs: c.cookMs, burnMs: c.burnMs, chopTaps: c.chopTaps, patienceMs: c.patienceMs, stars: c.stars },
+    config: { durationMs: c.durationMs, cookMs: c.cookMs, burnMs: c.burnMs, chopTaps: c.chopTaps, patienceMs: c.patienceMs, stars: c.stars, maxOrders: c.maxOrders },
+    levelCount: LEVELS.length,
+    upgrades: game.upgrades,
     hands: game.hands,
     burners: game.burners,
     counter: game.counter,
@@ -360,4 +389,4 @@ function viewFor(game, seat) {
   };
 }
 
-module.exports = { INGREDIENTS, DISHES, LEVEL_DISHES, LEVELS, createRushGame, act, tick, viewFor, itemState, COUNTDOWN_MS };
+module.exports = { INGREDIENTS, DISHES, LEVEL_DISHES, LEVELS, applyUpgrades, createRushGame, act, tick, viewFor, itemState, COUNTDOWN_MS };

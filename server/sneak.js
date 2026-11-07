@@ -26,7 +26,7 @@ const DECAY = 1;
 //   #  wall / counter      .  floor        ~  creaky floorboard
 //   D  roommate's door     1 2  start positions (floor)
 //   F  fridge   S  shelf   O  stove   B  chopping board   T  table
-const LEVELS = [
+const MAPS = [
   {
     snack: { emoji: '🥪', name: { en: 'Cheese Sandwich', vi: 'Bánh mì phô mai' } },
     map: [
@@ -43,7 +43,8 @@ const LEVELS = [
     sources: { F: ['cheese'], S: ['bread'] },
     recipe: ['bread:raw', 'cheese:raw'],
     cat: [[5, 6]],                       // asleep — doesn't move
-    maxNoise: 24, par: 5, maxRounds: 10,    // bot: 4 rounds, 17 noise
+    bot: { rounds: 4, noise: 17 },       // what the test bot needs on a calm night
+    catAwake: [[5, 6], [5, 5], [5, 4], [5, 5]],   // on harder nights the cat wanders
   },
   {
     snack: { emoji: '🍜', name: { en: 'Midnight Noodles', vi: 'Mì gói trứng' } },
@@ -61,7 +62,7 @@ const LEVELS = [
     sources: { F: ['egg'], S: ['noodles'] },
     recipe: ['noodles:cooked', 'egg:cooked'],
     cat: [[2, 6], [3, 6], [4, 6], [3, 6]],
-    maxNoise: 36, par: 7, maxRounds: 12,    // bot: 6 rounds, 27 noise
+    bot: { rounds: 6, noise: 27 },
   },
   {
     snack: { emoji: '🥖', name: { en: 'Late-night Bánh Mì', vi: 'Bánh mì đêm khuya' } },
@@ -79,9 +80,40 @@ const LEVELS = [
     sources: { F: ['cucumber', 'pork'], S: ['bread'] },
     recipe: ['bread:raw', 'cucumber:chopped', 'pork:cooked'],
     cat: [[2, 6], [3, 6], [4, 6], [3, 6]],
-    maxNoise: 48, par: 8, maxRounds: 14,    // bot: 7 rounds, 37 noise
+    bot: { rounds: 7, noise: 37 },
   },
 ];
+
+// 9 nights: each map three times, with a lighter-sleeping roommate each time round.
+//   tier 0 "sound asleep" · tier 1 "light sleeper" · tier 2 "wakes at anything"
+const TIERS = [
+  { noise: 1.4, parPlus: 1, roundsPlus: 6 },
+  { noise: 1.18, parPlus: 1, roundsPlus: 4 },
+  { noise: 1.08, parPlus: 0, roundsPlus: 3 },
+];
+const LEVELS = [];
+TIERS.forEach((tier, t) => MAPS.forEach(m => {
+  LEVELS.push({
+    ...m,
+    tier: t,
+    cat: t > 0 && m.catAwake ? m.catAwake : m.cat,
+    maxNoise: Math.round(m.bot.noise * tier.noise),
+    par: m.bot.rounds + tier.parPlus,
+    maxRounds: m.bot.rounds + tier.roundsPlus,
+  });
+}));
+
+// Kitchen upgrades from the shop.
+function rulesFor(def, upgrades = []) {
+  const rules = { ...NOISE };
+  if (upgrades.includes('slippers')) rules.creak = 2;
+  if (upgrades.includes('quietFridge')) rules.fridge = 2;
+  return {
+    rules,
+    maxNoise: Math.round(def.maxNoise * (upgrades.includes('earplugs') ? 1.15 : 1)),
+    catPath: upgrades.includes('catTreat') ? [def.cat[0]] : def.cat,
+  };
+}
 
 const WALKABLE = new Set(['.', '~', '1', '2']);
 const STATIONS = new Set(['F', 'S', 'O', 'B', 'T']);
@@ -105,22 +137,24 @@ function itemKey(item) {
   return `${item.ing}:${st}`;
 }
 
-function stepNoiseForTile(level, x, y) {
+function stepNoiseForTile(level, x, y, rules = NOISE) {
   const door = findChar(level, 'D');
-  let n = tileAt(level, x, y) === '~' ? NOISE.creak : NOISE.walk;
-  if (door && Math.abs(door.x - x) + Math.abs(door.y - y) <= 2) n += NOISE.nearDoor;
+  let n = tileAt(level, x, y) === '~' ? rules.creak : rules.walk;
+  if (door && Math.abs(door.x - x) + Math.abs(door.y - y) <= 2) n += rules.nearDoor;
   return n;
 }
 
 // ---- Game ----------------------------------------------------------------
 
-function createSneakGame(levelNo = 1) {
+function createSneakGame(levelNo = 1, upgrades = []) {
   const n = Math.min(Math.max(1, levelNo | 0), LEVELS.length);
   const level = LEVELS[n - 1];
   const s1 = findChar(level, '1'), s2 = findChar(level, '2');
   return {
     mode: 'sneak',
     level: n,
+    ...rulesFor(level, upgrades),
+    upgrades: upgrades.slice(),
     phase: 'planning',                 // planning → won | lost
     round: 1,
     players: [{ ...s1, hand: null }, { ...s2, hand: null }],
@@ -136,7 +170,7 @@ function createSneakGame(levelNo = 1) {
 }
 
 const lvl = game => LEVELS[game.level - 1];
-const catPos = (game, i = game.catIndex) => { const c = lvl(game).cat; const [x, y] = c[i % c.length]; return { x, y }; };
+const catPos = (game, i = game.catIndex) => { const c = game.catPath; const [x, y] = c[i % c.length]; return { x, y }; };
 
 // Validate a plan against the map only (partner and cat are ignored when planning).
 function validatePlan(game, seat, steps) {
@@ -197,9 +231,9 @@ function resolveRound(game) {
     const same = (a, b) => a.x === b.x && a.y === b.y;
     const revert = [false, false];
     // walking into the cat
-    for (const s of [0, 1]) if (moving[s] && same(to[s], cat)) { revert[s] = true; game.noise += NOISE.meow; game.stats.meows[s]++; events.push({ type: 'meow', who: s }); }
+    for (const s of [0, 1]) if (moving[s] && same(to[s], cat)) { revert[s] = true; game.noise += game.rules.meow; game.stats.meows[s]++; events.push({ type: 'meow', who: s }); }
     // bumping into each other
-    const bonk = () => { game.noise += NOISE.bonk; game.stats.bonks++; events.push({ type: 'bonk' }); };
+    const bonk = () => { game.noise += game.rules.bonk; game.stats.bonks++; events.push({ type: 'bonk' }); };
     if (!revert[0] && !revert[1] && (moving[0] || moving[1])) {
       if (same(to[0], to[1]) || (same(to[0], from[1]) && same(to[1], from[0]))) { revert[0] = moving[0]; revert[1] = moving[1]; bonk(); }
     }
@@ -211,7 +245,7 @@ function resolveRound(game) {
     for (const s of [0, 1]) {
       if (moving[s] && !revert[s]) {
         P[s].x = to[s].x; P[s].y = to[s].y;
-        const n = stepNoiseForTile(level, P[s].x, P[s].y);
+        const n = stepNoiseForTile(level, P[s].x, P[s].y, game.rules);
         game.noise += n;
         if (tileAt(level, P[s].x, P[s].y) === '~') { game.stats.creaks[s]++; events.push({ type: 'creak', who: s }); }
       }
@@ -220,14 +254,14 @@ function resolveRound(game) {
     // 2) Using stations.
     const uses = acts.map((a, s) => (a.t === 'use' && adjacent(P[s], a) ? a : null));
     const bothFridge = uses[0] && uses[1] && same(uses[0], uses[1]) && tileAt(level, uses[0].x, uses[0].y) === 'F';
-    if (bothFridge) { game.noise += NOISE.fridgeHeld; game.stats.held++; events.push({ type: 'hold' }); }
+    if (bothFridge) { game.noise += game.rules.fridgeHeld; game.stats.held++; events.push({ type: 'hold' }); }
     for (const s of [0, 1]) {
       const u = uses[s];
       if (!u) { if (acts[s].t === 'use') events.push({ type: 'miss', who: s }); continue; }
       const ch = tileAt(level, u.x, u.y);
       const hand = P[s].hand;
       if (ch === 'F' || ch === 'S') {
-        if (!bothFridge) game.noise += ch === 'F' ? NOISE.fridge : NOISE.shelf;
+        if (!bothFridge) game.noise += ch === 'F' ? game.rules.fridge : game.rules.shelf;
         const items = level.sources[ch];
         if (hand && items.includes(hand.ing)) { P[s].hand = null; events.push({ type: 'putBack', who: s, ing: hand.ing }); continue; }
         if (hand) { events.push({ type: 'handsFull', who: s }); continue; }
@@ -237,11 +271,11 @@ function resolveRound(game) {
         P[s].hand = { ing: want.split(':')[0], chopped: false, cooked: false };
         events.push({ type: 'grab', who: s, ing: P[s].hand.ing });
       } else if (ch === 'O') {
-        game.noise += NOISE.stove;
+        game.noise += game.rules.stove;
         if (!hand || hand.cooked) { events.push({ type: 'nothing', who: s }); continue; }
         hand.cooked = true; events.push({ type: 'cook', who: s, ing: hand.ing });
       } else if (ch === 'B') {
-        game.noise += NOISE.board;
+        game.noise += game.rules.board;
         if (!hand || hand.chopped || hand.cooked) { events.push({ type: 'nothing', who: s }); continue; }
         hand.chopped = true; events.push({ type: 'chop', who: s, ing: hand.ing });
       } else if (ch === 'T') {
@@ -254,14 +288,14 @@ function resolveRound(game) {
     }
 
     // 3) The cat wanders (unless a chef is standing in its way).
-    if (level.cat.length > 1) {
+    if (game.catPath.length > 1) {
       const next = catPos(game, game.catIndex + 1);
-      if (!P.some(p => same(p, next))) game.catIndex = (game.catIndex + 1) % level.cat.length;
+      if (!P.some(p => same(p, next))) game.catIndex = (game.catIndex + 1) % game.catPath.length;
     }
 
     // 4) Win / lose checks.
-    if (game.noise >= level.maxNoise) {
-      game.noise = level.maxNoise;
+    if (game.noise >= game.maxNoise) {
+      game.noise = game.maxNoise;
       events.push({ type: 'woke' });
       finish(game, false, 'woke');
     } else if (level.recipe.every(c => game.table.includes(c))) {
@@ -302,11 +336,14 @@ function viewFor(game, seat) {
     sources: level.sources,
     recipe: level.recipe,
     snack: level.snack,
-    catPath: level.cat,
-    maxNoise: level.maxNoise,
+    catPath: game.catPath,
+    maxNoise: game.maxNoise,
+    tier: level.tier,
+    levelCount: LEVELS.length,
+    upgrades: game.upgrades,
     par: level.par,
     maxRounds: level.maxRounds,
-    noiseRules: NOISE,
+    noiseRules: game.rules,
     decay: DECAY,
     stepsPerRound: STEPS_PER_ROUND,
     players: game.players,
@@ -321,4 +358,4 @@ function viewFor(game, seat) {
   };
 }
 
-module.exports = { INGREDIENTS, LEVELS, NOISE, STEPS_PER_ROUND, createSneakGame, act, viewFor, validatePlan, tileAt, walkable, findChar };
+module.exports = { INGREDIENTS, MAPS, LEVELS, TIERS, NOISE, rulesFor, STEPS_PER_ROUND, createSneakGame, act, viewFor, validatePlan, tileAt, walkable, findChar };

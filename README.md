@@ -9,6 +9,15 @@ A cozy co-op cooking game for two, played online from your phones.
 | 🔥 **Split Kitchen** | ✅ playable | Real-time. 🔥 Cook has the pantry + 2 burners, 🔪 Prep has the chopping board, plate and serve bell. Pass food across a shared counter to fill orders before customers leave. 3 levels (earn ⭐ to unlock the next); food burns if you forget it; the clock pauses if a phone disconnects. |
 | 🌙 **Midnight Snack** | ✅ playable | Co-op stealth puzzle. Both see a dark kitchen grid; each round you each plan up to 3 steps (walk / use the fridge, shelf, stove, board or table / wait), lock in, and move at the same time. Creaky boards, the cat and bumping into each other make noise; open the fridge together to keep it quiet. Get the snack on the table before the roommate wakes up. 3 nights. |
 
+## Coins, shop & upgrades
+- Every finished game pays coins into **one shared 💰 wallet** that both partners earn into and either can spend.
+  - Recipe Relay: 10 + 10 per ⭐ · Split Kitchen: half the coins earned + 15 per ⭐ · Midnight Snack: 30 + 15 per ⭐ + 5 × night (5 for trying)
+- **🛒 Shop** (from the lobby):
+  - Kitchen: upgrades that make modes easier (third burner, sharp knife, non-stick pans, friendly bell, recipe notebook, soft slippers, quiet fridge, earplugs, cat treats) and decor (cherry blossom, garden, seaside).
+  - My chef: your own chef's colour, hat and glasses. Your partner sees your look everywhere.
+- Difficulty keeps climbing so upgrades stay useful: Split Kitchen has **10 levels**, Midnight Snack **9 nights** (each map with a lighter and lighter sleeper), and Recipe Relay gets more clues and fewer steps as the evening goes on.
+- Coins and purchases last for the session (while the kitchen is open on the server). `START_COINS=500 npm start` gives new kitchens 500 coins for testing.
+
 ## Languages & pantries
 - **English / Tiếng Việt** — tap the flag on the home screen or in the lobby. It defaults to Vietnamese when the phone's language is Vietnamese. Each partner can play in their own language in the same game.
 - **One combined kitchen**: Vietnamese and Western ingredients and dishes live together. Recipe Relay deals a random "today's market" of 18 ingredients each round (from 26), so every round is different; Split Kitchen has an 18-item pantry and every level mixes dishes like bánh mì, phở bò and cơm tấm with burgers, fries and pasta.
@@ -39,6 +48,7 @@ The server listens on `$PORT`. Rooms live in memory, so a restart/redeploy clear
 - `server/index.js` — Express static server + Socket.IO rooms (create/join/rejoin, reactions, presence).
 - `server/rush.js` — Split Kitchen rules: roles, items (raw/chopped/cooked/burnt), orders, coins, levels. The server runs one 250 ms game clock for all kitchens.
 - `server/sneak.js` — Midnight Snack rules: maps, simultaneous moves, noise, cat patrols. `test/sneak-solver.js` is a small bot that proves every night can be won within par.
+- `server/shop.js` — wallets, payouts, shop items and buying/equipping.
 - `server/relay.js` — Recipe Relay rules. The server picks a hidden target dish, derives clues that are all true for it, and splits them 3/3. Each player only ever receives their own card until the round ends.
 - `public/` — vanilla HTML/CSS/JS, mobile-first, no build step. `i18n.js` holds all English/Vietnamese text. Sounds are synthesized with Web Audio.
 - Reconnects: each browser keeps a player id in `localStorage`, so refreshing or a dropped phone connection puts you back in your seat.
