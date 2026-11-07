@@ -17,7 +17,7 @@ function loadI18n() {
   vm.createContext(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '../public/i18n.js'), 'utf8'), ctx);
   const I = ctx.window.I18N;
-  I.setCatalog(JSON.parse(JSON.stringify({ ingredients: relay.INGREDIENTS, dishTypes: relay.DISH_TYPES, actions: relay.ACTIONS, rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES } })));
+  I.setCatalog(JSON.parse(JSON.stringify({ ingredients: relay.INGREDIENTS, dishes: relay.DISHES, actions: relay.ACTIONS, rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES } })));
   return I;
 }
 
@@ -28,22 +28,29 @@ test('every clue and dish name renders in English and Vietnamese', () => {
   for (const lang of ['en', 'vi']) {
     I.setLang(lang);
     for (let i = 0; i < 400; i++) {
-      const g = relay.createRelayGame(1);
-      for (const clue of g.recipe.cards.flat()) {
+      const g = relay.createRelayGame(1 + (i % 9));
+      // what the phone actually receives (riddles without answers)
+      for (const clue of relay.viewFor(g, i % 2).myCard) {
         const text = I.clueText(clue);
         assert.doesNotMatch(text, bad, `${lang}: ${JSON.stringify(clue)} → ${text}`);
       }
-      // Fill the pot with the target and name the dish.
-      g.recipe.target.ingredients.forEach((id, k) => g.pot.push({ kind: 'ingredient', id, by: k % 2 }));
       const name = I.dishName(relay.dishInfo(g), ['Tri', 'Mai']);
       assert.doesNotMatch(name, bad, name);
       assert.match(name, /Tri|Mai/);
     }
+    for (const key of ['gma.yum', 'gma.yuck', 'gma.meh', 'gma.oops', 'gma.ok']) assert.ok(I.pickLine(key).length > 3, key);
   }
   I.setLang('vi');
-  assert.match(I.dishName({ chefs: [0], flavor: 'spicy', star: 'shrimp', dishType: 'pho' }, ['Trí', 'Mai']), /^Phở tôm cay của Trí$/);
+  assert.strictEqual(I.dishName({ dish: 'phobo', chefs: [0] }, ['Trí', 'Mai']), 'Phở bò của Trí');
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['veg', 'red', 'sour'] }), 'một loại rau củ màu đỏ, vị chua');
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['white', 'sweet'] }), 'thứ gì đó màu trắng, vị ngọt');
+  assert.strictEqual(I.clueText({ type: 'hasAction', id: 'boil' }), 'cần ♨️ đun');
   I.setLang('en');
-  assert.strictEqual(I.dishName({ chefs: [0, 1], flavor: 'spicy', star: 'shrimp', dishType: 'pho' }, ['Tri', 'Mai']), "Tri & Mai's Spicy Shrimp Phở");
+  assert.strictEqual(I.dishName({ dish: 'phobo', chefs: [0, 1] }, ['Tri', 'Mai']), "Tri & Mai's Beef Phở");
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['veg', 'red', 'sour'] }), 'a red, sour veggie');
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['herb'] }), 'a herb');
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['white', 'sweet'] }), 'something white & sweet');
+  assert.strictEqual(I.clueText({ type: 'riddle', tags: ['seafood', 'orange'] }), 'an orange seafood');
 });
 
 test('every Split Kitchen ingredient and dish has both names', () => {

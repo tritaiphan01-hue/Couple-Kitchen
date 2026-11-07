@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { io: connect } = require('socket.io-client');
 const { server, rooms } = require('../server/index');
+const relay = require('../server/relay');
 
 const emit = (s, ev, data) => new Promise(r => s.emit(ev, data, r));
 const nextState = (s, pred = () => true) => new Promise(r => {
@@ -36,22 +37,30 @@ test('two players can create, join, play and reconnect', async t => {
   const started = nextState(b, s => s.game);
   await emit(a, 'mode:start', { mode: 'relay' });
   const sb = await started;
-  assert.strictEqual(sb.game.myCard.length, 3);
+  assert.ok(sb.game.myCard.length >= 2 && sb.game.myCard.length <= 4);
+  assert.ok(sb.game.myCard.every(c => c.type !== 'riddle' || c.id === undefined));   // no answers on the phone
   assert.strictEqual(sb.game.cards, undefined);
   assert.strictEqual(sb.game.market.length, 18);
 
+  // Cook the real recipe (the test peeks at the server; players only see riddles).
   const players = [a, b];
-  let last;
-  for (let i = 0; i < 8; i++) {
-    const room = rooms.get(created.code);
-    const seat = (room.game.starter + room.game.turn) % 2;
-    const wait = nextState(a, s => s.game.turn === i + 1);
-    const res = await emit(players[seat], 'relay:move', { kind: 'action', id: 'stir' });
+  const g = rooms.get(created.code).game;
+  const dish = relay.DISHES[g.dish];
+  const steps = [...dish.ings.map(id => ({ kind: 'ingredient', id })), ...dish.acts.map(id => ({ kind: 'action', id }))];
+  for (let i = 0; i < steps.length; i++) {
+    const seat = (g.starter + g.turn) % 2;
+    const res = await emit(players[seat], 'relay:move', steps[i]);
     assert.ok(res.ok, res.error);
-    last = await wait;
   }
-  assert.strictEqual(last.game.phase, 'results');
-  assert.deepStrictEqual(last.game.dish.chefs, [0, 1]);   // nobody added ingredients → shared credit
+  assert.strictEqual(g.phase, 'guessing');
+  assert.ok(g.reactions.every(r => r.mood === 'yum'));
+  // Both guess the dish; the results come after the second guess.
+  await emit(a, 'relay:guess', { dish: g.dish });
+  const done = nextState(a, s => s.game.phase === 'results');
+  await emit(b, 'relay:guess', { dish: g.guessOptions.find(d => d !== g.dish) });
+  const last = await done;
+  assert.strictEqual(last.game.result.how, 'perfect');
+  assert.deepStrictEqual(last.game.result.guessed, [true, false]);
   assert.strictEqual(last.room.stats.rounds, 1);
   // The round paid into the shared wallet.
   const reward = last.game.result.reward;

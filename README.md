@@ -5,7 +5,7 @@ A cozy co-op cooking game for two, played online from your phones.
 ## Modes
 | Mode | Status | Vibe |
 |---|---|---|
-| 🍷 **Recipe Relay** | ✅ playable | Turn-based. Each of you holds half of a secret recipe card. Take turns adding one ingredient or action to a shared pot; after 8 steps the dish is judged against both cards (0–3 ⭐). |
+| 🍷 **Recipe Relay** | ✅ playable | Turn-based. Grandma 👵 wants a real dish (phở bò, canh chua, mì Ý sốt cà…). Each of you holds half the recipe as riddles (“a red, sour veggie”) plus the actions it needs. Take turns adding an ingredient, doing an action, or scooping the last ingredient out. Grandma reacts to every step; each wrong one costs a ❤️ and losing them all gets you kicked out on the spot. Cook the exact recipe for 3 ⭐, then both guess the dish for bonus coins. Riddles get vaguer and Grandma grumpier as the evening goes on. |
 | 🔥 **Split Kitchen** | ✅ playable | Real-time. 🔥 Cook has the pantry + 2 burners, 🔪 Prep has the chopping board, plate and serve bell. Pass food across a shared counter to fill orders before customers leave. 3 levels (earn ⭐ to unlock the next); food burns if you forget it; the clock pauses if a phone disconnects. |
 | 🌙 **Midnight Snack** | ✅ playable | Co-op stealth puzzle. Both see a dark kitchen grid; each round you each plan up to 3 steps (walk / use the fridge, shelf, stove, board or table / wait), lock in, and move at the same time. Creaky boards, the cat and bumping into each other make noise; open the fridge together to keep it quiet. Get the snack on the table before the roommate wakes up. 15 nights. |
 
@@ -50,6 +50,6 @@ The server listens on `$PORT`. Rooms live in memory, so a restart/redeploy clear
 - `server/rush.js` — Split Kitchen rules: roles, items (raw/chopped/cooked/burnt), orders, coins, levels. The server runs one 250 ms game clock for all kitchens.
 - `server/sneak.js` — Midnight Snack rules: maps, simultaneous moves, noise, cat patrols. `test/sneak-solver.js` is a small bot that proves every night can be won within par.
 - `server/shop.js` — wallets, payouts, shop items and buying/equipping.
-- `server/relay.js` — Recipe Relay rules. The server picks a hidden target dish, derives clues that are all true for it, and splits them 3/3. Each player only ever receives their own card until the round ends.
+- `server/relay.js` — Recipe Relay rules (`test/relay-bot.js` is a naive guessing couple used to tune the difficulty). The server picks a hidden target dish, derives clues that are all true for it, and splits them 3/3. Each player only ever receives their own card until the round ends.
 - `public/` — vanilla HTML/CSS/JS, mobile-first, no build step. `i18n.js` holds all English/Vietnamese text. Ingredients, Midnight Snack stations and the animals are hand-made SVG stickers (`icons.js`) so the game looks the same on every phone. Sound effects and the lo-fi background music (`music.js`, three moods: chill / rush / sneak, toggle with 🎵) are synthesized with Web Audio, so there are no audio files.
 - Reconnects: each browser keeps a player id in `localStorage`, so refreshing or a dropped phone connection puts you back in your seat.

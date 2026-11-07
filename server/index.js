@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size }));
 app.get('/api/catalog', (_req, res) => res.json({
   shop: shop.ITEMS,
-  ingredients: relay.INGREDIENTS, dishTypes: relay.DISH_TYPES, actions: relay.ACTIONS,
+  ingredients: relay.INGREDIENTS, dishes: relay.DISHES, actions: relay.ACTIONS,
   rush: { ingredients: rush.INGREDIENTS, dishes: rush.DISHES },
   sneak: { ingredients: sneak.INGREDIENTS },
 }));
@@ -83,7 +83,10 @@ function recordRound(room) {
   // Store chef *names* with the dish so the recap still reads right if someone leaves.
   room.stats.dishes.push({ dish: relay.dishInfo(g), names: names(room), stars: g.result.stars });
   if (room.stats.dishes.length > 20) room.stats.dishes.shift();
-  g.result.reward = shop.grant(room, 10 + g.result.stars * 10);
+  // Stars, a bonus for steps left over on a perfect dish, and 5 per correct guess.
+  const guessBonus = (g.result.guessed || []).filter(Boolean).length * 5;
+  const spareBonus = g.result.how === 'perfect' ? g.result.turnsLeft * 2 : 0;
+  g.result.reward = shop.grant(room, 10 + g.result.stars * 10 + spareBonus + guessBonus);
 }
 
 function attach(socket, room, seat) {
@@ -221,6 +224,16 @@ io.on('connection', socket => {
     const room = rooms.get(socket.data.code);
     if (!room || !room.game || room.game.mode !== 'relay') return ack({ error: 'no_game' });
     const err = relay.applyMove(room.game, socket.data.seat, move);
+    if (err) return ack({ error: err });
+    recordRound(room);
+    ack({ ok: true });
+    broadcast(room);
+  });
+
+  socket.on('relay:guess', ({ dish } = {}, ack = () => {}) => {
+    const room = rooms.get(socket.data.code);
+    if (!room || !room.game || room.game.mode !== 'relay') return ack({ error: 'no_game' });
+    const err = relay.applyGuess(room.game, socket.data.seat, dish);
     if (err) return ack({ error: err });
     recordRound(room);
     ack({ ok: true });

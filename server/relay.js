@@ -1,8 +1,12 @@
-// Recipe Relay — turn-based co-op mode.
-// The server secretly picks a target dish, derives clues that are all true for
-// that dish, and splits them between the two players. Players take turns adding
-// one ingredient or doing one action to a shared pot. At the end the pot is
-// judged against every clue.
+// Recipe Relay — turn-based co-op cooking with Grandma watching.
+//
+// The server secretly picks a REAL dish (phở bò, canh chua, mì Ý sốt cà…),
+// derives clues from its recipe and splits them between the two players.
+// Players take turns adding one ingredient, doing one action, or scooping the
+// last ingredient back out. Grandma 👵 reacts to every step: a wrong ingredient
+// or action costs one of her hearts, and when they run out she kicks you out of
+// the kitchen — the round is lost on the spot. Cook the exact recipe to win.
+// Afterwards both players guess which dish it was.
 //
 // One combined Western + Vietnamese pantry; each round deals a random "market".
 // Everything sent to clients is language-neutral data (ids, tags, numbers).
@@ -41,29 +45,27 @@ const INGREDIENTS = {
   sa:        ing('🌾', 'Lemongrass',    'Sả',         ['herb', 'green', 'fresh']),
 };
 
-const DISH_TYPES = {
-  soup:     { en: 'Soup',       vi: 'Súp' },
-  stew:     { en: 'Stew',       vi: 'Món hầm' },
-  stirfry:  { en: 'Stir-fry',   vi: 'Món xào' },
-  curry:    { en: 'Curry',      vi: 'Cà ri' },
-  risotto:  { en: 'Risotto',    vi: 'Cơm Ý' },
-  pie:      { en: 'Pot Pie',    vi: 'Bánh nướng' },
-  pho:      { en: 'Phở',        vi: 'Phở' },
-  canhchua: { en: 'Canh Chua',  vi: 'Canh chua' },
-  bun:      { en: 'Bún',        vi: 'Bún' },
-  comchien: { en: 'Fried Rice', vi: 'Cơm chiên' },
-  lau:      { en: 'Lẩu',        vi: 'Lẩu' },
-  chao:     { en: 'Cháo',       vi: 'Cháo' },
-  goi:      { en: 'Gỏi',        vi: 'Gỏi' },
-  kho:      { en: 'Kho',        vi: 'Món kho' },
-  hutieu:   { en: 'Hủ Tiếu',    vi: 'Hủ tiếu' },
-  banhxeo:  { en: 'Bánh Xèo',   vi: 'Bánh xèo' },
-  banhcanh: { en: 'Bánh Canh',  vi: 'Bánh canh' },
-  comtam:   { en: 'Cơm Tấm',    vi: 'Cơm tấm' },
+// Real dishes. Each uses 3–5 ingredients from the pantry and 1–2 actions.
+const DISHES = {
+  phobo:      { emoji: '🍜', name: { en: 'Beef Phở', vi: 'Phở bò' },                  ings: ['thit_bo', 'bun', 'onion', 'herbs'],        acts: ['boil', 'salt'] },
+  canhchua:   { emoji: '🍲', name: { en: 'Sour Fish Soup', vi: 'Canh chua cá' },     ings: ['ca', 'thom', 'tomato', 'herbs'],           acts: ['boil'] },
+  bunbohue:   { emoji: '🌶️', name: { en: 'Spicy Beef Noodles', vi: 'Bún bò Huế' },   ings: ['thit_bo', 'bun', 'sa', 'chili'],           acts: ['boil'] },
+  comchien:   { emoji: '🍳', name: { en: 'Egg Fried Rice', vi: 'Cơm chiên trứng' },  ings: ['rice', 'egg', 'onion', 'garlic'],          acts: ['stir', 'salt'] },
+  gaxaosa:    { emoji: '🍗', name: { en: 'Lemongrass Chili Chicken', vi: 'Gà xào sả ớt' }, ings: ['chicken', 'sa', 'chili', 'garlic'], acts: ['stir'] },
+  raumuong:   { emoji: '🥬', name: { en: 'Garlic Water Spinach', vi: 'Rau muống xào tỏi' }, ings: ['rau_muong', 'garlic', 'nuoc_mam'],  acts: ['stir'] },
+  miysotca:   { emoji: '🍝', name: { en: 'Tomato Pasta', vi: 'Mì Ý sốt cà' },        ings: ['noodles', 'tomato', 'garlic', 'cheese'],   acts: ['boil', 'stir'] },
+  supnam:     { emoji: '🍄', name: { en: 'Creamy Mushroom Soup', vi: 'Súp kem nấm' }, ings: ['mushroom', 'milk', 'onion', 'potato'],     acts: ['boil', 'stir'] },
+  supgabap:   { emoji: '🌽', name: { en: 'Chicken Corn Soup', vi: 'Súp gà bắp' },    ings: ['chicken', 'corn', 'egg', 'carrot'],        acts: ['boil'] },
+  tomrim:     { emoji: '🦐', name: { en: 'Honey Garlic Shrimp', vi: 'Tôm rim mật ong' }, ings: ['shrimp', 'honey', 'garlic', 'nuoc_mam'], acts: ['stir'] },
+  thitkho:    { emoji: '🥚', name: { en: 'Braised Pork & Eggs', vi: 'Thịt kho trứng' }, ings: ['thit_heo', 'egg', 'nuoc_mam', 'honey'],  acts: ['boil'] },
+  khoaitay:   { emoji: '🥔', name: { en: 'Cheesy Mashed Potato', vi: 'Khoai tây nghiền phô mai' }, ings: ['potato', 'milk', 'cheese'], acts: ['boil', 'stir'] },
+  cariga:     { emoji: '🍛', name: { en: 'Chicken Curry', vi: 'Cà ri gà' },          ings: ['chicken', 'potato', 'carrot', 'sa', 'milk'], acts: ['boil'] },
+  goicuon:    { emoji: '🌯', name: { en: 'Fresh Spring Rolls', vi: 'Gỏi cuốn tôm thịt' }, ings: ['shrimp', 'thit_heo', 'bun', 'herbs'], acts: ['boil'] },
+  chaoga:     { emoji: '🥣', name: { en: 'Chicken Rice Porridge', vi: 'Cháo gà' },    ings: ['rice', 'chicken', 'onion', 'herbs'],       acts: ['boil', 'salt'] },
 };
 
 // Each round only some ingredients are "at the market", so the pantry fits on a phone
-// and every round feels a little different.
+// and every round feels a little different. The secret dish's ingredients are always there.
 const MARKET_SIZE = 18;
 
 const ACTIONS = {
@@ -72,17 +74,17 @@ const ACTIONS = {
   salt: { emoji: '🧂', name: { en: 'Salt', vi: 'Nêm' } },
 };
 
-// Tags that make good "NO …" clues when the target dish lacks them.
-const NEGATABLE_TAGS = ['dairy', 'meat', 'seafood', 'spicy', 'sweet', 'sour', 'grain', 'protein', 'fruit', 'herb'];
-const TOTAL_TURNS = 8;
-const CLUES_PER_PLAYER = 3;
-// Difficulty climbs as the evening goes on: more clues to satisfy, then fewer steps.
+// Difficulty climbs through the evening: vaguer riddles (decoys in the market),
+// then a grumpier grandma. Tuned with test/relay-bot.js (a naive guessing couple):
+// perfect ≈ 82% / 48% / 45%, kicked out ≈ 2% / 10% / 34%.
 const TIERS = [
-  { fromRound: 1, turns: 8, clues: 3 },
-  { fromRound: 4, turns: 8, clues: 4 },
-  { fromRound: 7, turns: 7, clues: 4 },
+  { fromRound: 1, turns: 8, maxTags: 3, target: [1, 1], hearts: 3 },   // exact riddles, patient grandma
+  { fromRound: 4, turns: 8, maxTags: 2, target: [1, 2], hearts: 3 },   // some riddles fit a decoy too
+  { fromRound: 7, turns: 8, maxTags: 2, target: [1, 2], hearts: 2 },   // same riddles, but Grandma only has 2 hearts
 ];
 const tierFor = round => TIERS.reduce((t, x, i) => (round >= x.fromRound ? i : t), 0);
+const TOTAL_TURNS = TIERS[0].turns;
+const GUESS_OPTIONS = 4;
 
 function shuffle(arr, rand = Math.random) {
   const a = arr.slice();
@@ -99,117 +101,105 @@ function tagsOf(ingredientIds) {
   return counts;
 }
 
-// ---- Clue checking -------------------------------------------------------
+const potIngs = pot => pot.filter(s => s.kind === 'ingredient').map(s => s.id);
+const potActs = pot => pot.filter(s => s.kind === 'action').map(s => s.id);
+
+// ---- Clues ---------------------------------------------------------------
+//
+// Each ingredient of the secret recipe becomes a little riddle made of its tags
+// ("a red, sour veggie"), picked so as few market items as possible match it.
+// Each needed action is a clue too ("needs boiling"). The riddles and actions
+// are dealt alternately onto the two cards. The answer (`id`) never leaves the
+// server: viewFor strips it.
+
+// Which tag reads as the noun of a riddle, most specific first.
+const NOUN_TAGS = ['meat', 'seafood', 'dairy', 'herb', 'grain', 'fruit', 'veg', 'protein'];
+
+function matching(market, tags) {
+  return market.filter(id => tags.every(t => INGREDIENTS[id].tags.includes(t)));
+}
+
+function subsets(list, maxSize) {
+  const out = [];
+  const rec = (i, cur) => {
+    if (cur.length) out.push(cur.slice());
+    if (cur.length === maxSize) return;
+    for (let j = i; j < list.length; j++) { cur.push(list[j]); rec(j + 1, cur); cur.pop(); }
+  };
+  rec(0, []);
+  return out;
+}
+
+// `target` = how many market items the riddle should fit (1 = exact, 2+ = decoys).
+function riddleFor(id, market, maxTags, target, rand) {
+  const tags = INGREDIENTS[id].tags;
+  const options = subsets(tags, maxTags).map(sub => ({ sub, n: matching(market, sub).length }));
+  const dist = o => Math.abs(o.n - target) + (o.n < target ? 0.5 : 0);   // prefer slightly too vague over too exact
+  const bestDist = Math.min(...options.map(dist));
+  const pool = options.filter(o => dist(o) === bestDist);
+  const best = pool[0].n;
+  const smallest = Math.min(...pool.map(o => o.sub.length));
+  const pick = pool.filter(o => o.sub.length === smallest);
+  const chosen = pick[Math.floor(rand() * pick.length)].sub;
+  // put the noun tag (if any) first, so clients can phrase it naturally
+  chosen.sort((a, b) => (NOUN_TAGS.includes(b) ? 1 : 0) - (NOUN_TAGS.includes(a) ? 1 : 0));
+  return { type: 'riddle', id, tags: chosen, matches: matching(market, chosen).length };
+}
+
+function makeClues(dish, market, maxTags = 3, rand = Math.random, target = [1, 1]) {
+  const riddles = shuffle(dish.ings, rand).map(id => riddleFor(id, market, maxTags, target[0] + Math.floor(rand() * (target[1] - target[0] + 1)), rand));
+  const acts = shuffle(dish.acts, rand).map(id => ({ type: 'hasAction', id }));
+  const cards = [[], []];
+  riddles.forEach((c, i) => cards[i % 2].push(c));
+  // each action clue goes to whichever card is shorter, so both cards stay even
+  acts.forEach((c, i) => cards[cards[0].length === cards[1].length ? i % 2 : cards[0].length < cards[1].length ? 0 : 1].push(c));
+  return cards;
+}
 
 function checkClue(clue, pot) {
-  const ings = pot.filter(s => s.kind === 'ingredient').map(s => s.id);
-  const acts = pot.filter(s => s.kind === 'action').map(s => s.id);
-  const tags = tagsOf(ings);
-  const last = pot[pot.length - 1];
+  const ings = potIngs(pot), acts = potActs(pot);
   switch (clue.type) {
-    case 'hasTag':    return (tags[clue.tag] || 0) >= 1;
-    case 'noTag':     return !tags[clue.tag];
-    case 'minTag':    return (tags[clue.tag] || 0) >= clue.n;
-    case 'hasIng':    return ings.includes(clue.id);
-    case 'noIng':     return !ings.includes(clue.id);
+    case 'riddle':    return ings.includes(clue.id);
     case 'hasAction': return acts.includes(clue.id);
-    case 'noAction':  return !acts.includes(clue.id);
-    case 'maxIngs':   return ings.length <= clue.n;
-    case 'minIngs':   return ings.length >= clue.n;
-    case 'lastIs':    return !!last && last.kind === 'action' && last.id === clue.id;
     default:          return false;
   }
 }
 
-// ---- Recipe generation ---------------------------------------------------
+// Send clues without the answer.
+const publicClue = ({ id, matches, ...c }) => (c.type === 'riddle' ? c : { ...c, id });
 
-// Build every clue that is TRUE for the target dish, then pick a varied set.
-function candidateClues(market, targetIngs, targetActs, lastAction, rand) {
-  const tags = tagsOf(targetIngs);
-  const marketTags = tagsOf(market);
-  const out = [];
+// ---- Game ----------------------------------------------------------------
 
-  for (const [tag, n] of Object.entries(tags)) {
-    out.push({ type: 'hasTag', tag, w: 3 });
-    if (n >= 2) out.push({ type: 'minTag', tag, n: 2, w: 4 });
-  }
-  // Only forbid things the pantry actually contains, otherwise the clue is free.
-  for (const tag of NEGATABLE_TAGS) {
-    if (!tags[tag] && marketTags[tag]) out.push({ type: 'noTag', tag, w: 3 });
-  }
-  for (const id of targetIngs) out.push({ type: 'hasIng', id, w: 2 });
-  for (const id of shuffle(market.filter(i => !targetIngs.includes(i)), rand).slice(0, 3)) {
-    out.push({ type: 'noIng', id, w: 1 });
-  }
-  for (const id of Object.keys(ACTIONS)) {
-    out.push(targetActs.includes(id) ? { type: 'hasAction', id, w: 3 } : { type: 'noAction', id, w: 2 });
-  }
-  out.push({ type: 'maxIngs', n: targetIngs.length + 1, w: 2 });
-  if (targetIngs.length >= 4) out.push({ type: 'minIngs', n: targetIngs.length - 1, w: 2 });
-  if (lastAction) out.push({ type: 'lastIs', id: lastAction, w: 2 });
-  return out;
-}
-
-// Two clues "collide" if they talk about the same thing — keeps the card varied.
-function clueKey(c) {
-  if (c.type === 'hasTag' || c.type === 'minTag' || c.type === 'noTag') return 'tag:' + c.tag;
-  if (c.type === 'hasIng' || c.type === 'noIng') return 'ing:' + c.id;
-  if (c.type === 'hasAction' || c.type === 'noAction' || c.type === 'lastIs') return 'act:' + c.id;
-  if (c.type === 'maxIngs' || c.type === 'minIngs') return 'count';
-  return c.type;
-}
-
-function generateRecipe(market = Object.keys(INGREDIENTS), rand = Math.random, turns = TOTAL_TURNS, perPlayer = CLUES_PER_PLAYER) {
-  const ingIds = market;
-  const nIngs = 4 + Math.floor(rand() * 2);          // 4–5 ingredients
-  const targetIngs = shuffle(ingIds, rand).slice(0, nIngs);
-  const nActs = turns - nIngs >= 3 ? 2 : 1;          // always fits in the round's steps
-  const targetActs = shuffle(Object.keys(ACTIONS), rand).slice(0, nActs);
-  const lastAction = targetActs[targetActs.length - 1];
-
-  // Weighted shuffle: higher-weight clues tend to come first, with some randomness.
-  const pool = candidateClues(market, targetIngs, targetActs, lastAction, rand)
-    .map(c => ({ c, score: c.w + rand() * 3 }))
-    .sort((a, b) => b.score - a.score)
-    .map(x => x.c);
-  const chosen = [];
-  const usedKeys = new Set();
-  for (const c of pool) {
-    if (chosen.length >= perPlayer * 2) break;
-    const k = clueKey(c);
-    if (usedKeys.has(k)) continue;
-    usedKeys.add(k);
-    chosen.push(c);
-  }
-  const clues = shuffle(chosen, rand).map(({ w, ...c }) => c);
-  const dishKeys = Object.keys(DISH_TYPES);
-  return {
-    dishType: dishKeys[Math.floor(rand() * dishKeys.length)],
-    target: { ingredients: targetIngs, actions: targetActs },
-    cards: [clues.slice(0, Math.ceil(clues.length / 2)), clues.slice(Math.ceil(clues.length / 2))],
-  };
-}
-
-// ---- Game state ----------------------------------------------------------
-
-function createRelayGame(round = 1, upgrades = [], rand = Math.random) {
+function createRelayGame(round = 1, upgrades = [], rand = Math.random, dishId = null) {
   const tier = tierFor(round);
-  const turns = TIERS[tier].turns + (upgrades.includes('notebook') ? 1 : 0);
-  // Today's market, in a stable order (by catalogue position) so the pantry grid stays tidy.
+  const T = TIERS[tier];
+  const turns = T.turns + (upgrades.includes('notebook') ? 1 : 0);
+  const ids = Object.keys(DISHES);
+  const dishKey = dishId && DISHES[dishId] ? dishId : ids[Math.floor(rand() * ids.length)];
+  const dish = DISHES[dishKey];
+  // Market: the dish's ingredients plus random others, in catalogue order.
   const all = Object.keys(INGREDIENTS);
-  const pick = new Set(shuffle(all, rand).slice(0, MARKET_SIZE));
+  const extra = shuffle(all.filter(id => !dish.ings.includes(id)), rand).slice(0, MARKET_SIZE - dish.ings.length);
+  const pick = new Set([...dish.ings, ...extra]);
   const market = all.filter(id => pick.has(id));
+  const guessOptions = shuffle([dishKey, ...shuffle(ids.filter(d => d !== dishKey), rand).slice(0, GUESS_OPTIONS - 1)], rand);
   return {
     mode: 'relay',
     market,
-    round,
-    phase: 'playing',            // 'playing' | 'results'
     tier,
-    turn: 0,                     // 0..totalTurns-1
+    round,
+    phase: 'playing',            // playing → guessing → results
+    turn: 0,
     totalTurns: turns,
     starter: (round - 1) % 2,    // alternate who goes first each round
     pot: [],                     // [{kind, id, by}]
-    recipe: generateRecipe(market, rand, turns, TIERS[tier].clues),
+    hearts: T.hearts,
+    maxHearts: T.hearts,
+    reactions: [],               // grandma's reaction to each step, for the client
+    dish: dishKey,
+    recipe: { cards: makeClues(dish, market, T.maxTags, rand, T.target) },
+    guessOptions,
+    guesses: [null, null],
     result: null,
   };
 }
@@ -218,49 +208,85 @@ function currentPlayer(game) {
   return (game.starter + game.turn) % 2;
 }
 
+// Mistakes still in the pot right now (missing / wrong ingredients, missing actions).
+function mistakes(game) {
+  const dish = DISHES[game.dish];
+  const ings = potIngs(game.pot), acts = potActs(game.pot);
+  const missing = dish.ings.filter(id => !ings.includes(id)).length;
+  const wrong = ings.filter(id => !dish.ings.includes(id)).length;
+  const missingActs = dish.acts.filter(id => !acts.includes(id)).length;
+  return { missing, wrong, missingActs, total: missing + wrong + missingActs };
+}
+
 // Returns an error code (translated on the client), or null on success.
 function applyMove(game, seat, move) {
   if (game.phase !== 'playing') return 'round_over';
   if (currentPlayer(game) !== seat) return 'not_your_turn';
-  if (!move || (move.kind !== 'ingredient' && move.kind !== 'action')) return 'invalid_move';
+  if (!move || !['ingredient', 'action', 'remove'].includes(move.kind)) return 'invalid_move';
+  const dish = DISHES[game.dish];
+  let mood;   // grandma: 'yum' | 'ok' | 'meh' | 'yuck'
+
   if (move.kind === 'ingredient') {
     if (!game.market.includes(move.id)) return 'unknown_ingredient';
     if (game.pot.some(s => s.kind === 'ingredient' && s.id === move.id)) return 'already_in_pot';
-  } else if (!Object.prototype.hasOwnProperty.call(ACTIONS, move.id)) {
-    return 'unknown_action';
+    game.pot.push({ kind: 'ingredient', id: move.id, by: seat });
+    mood = dish.ings.includes(move.id) ? 'yum' : 'yuck';
+  } else if (move.kind === 'action') {
+    if (!Object.prototype.hasOwnProperty.call(ACTIONS, move.id)) return 'unknown_action';
+    const done = potActs(game.pot).includes(move.id);
+    game.pot.push({ kind: 'action', id: move.id, by: seat });
+    mood = !dish.acts.includes(move.id) ? 'yuck' : done ? 'meh' : 'yum';
+  } else {
+    // Scoop out the most recently added ingredient.
+    const idx = game.pot.map(s => s.kind).lastIndexOf('ingredient');
+    if (idx === -1) return 'nothing_to_remove';
+    const [removed] = game.pot.splice(idx, 1);
+    move = { kind: 'remove', id: removed.id };
+    mood = dish.ings.includes(removed.id) ? 'meh' : 'ok';
   }
-  game.pot.push({ kind: move.kind, id: move.id, by: seat });
+
+  if (mood === 'yuck') game.hearts--;
+  game.reactions.push({ step: game.turn, by: seat, kind: move.kind, id: move.id, mood, hearts: game.hearts });
   game.turn++;
-  if (game.turn >= game.totalTurns) finishRound(game);
+
+  if (game.hearts <= 0) return finishRound(game, 'kicked'), null;
+  if (mistakes(game).total === 0) return finishRound(game, 'perfect'), null;
+  if (game.turn >= game.totalTurns) finishRound(game, 'time');
   return null;
 }
 
-function finishRound(game) {
+function finishRound(game, how) {
+  const m = mistakes(game);
   const checks = game.recipe.cards.map(card => card.map(c => checkClue(c, game.pot)));
-  const met = checks.flat().filter(Boolean).length;
-  const total = checks.flat().length;
-  const stars = met === total ? 3 : met >= total - 1 ? 2 : met >= total - 3 ? 1 : 0;
-  game.phase = 'results';
-  game.result = { checks, met, total, stars };
+  let stars, won;
+  if (how === 'kicked') { stars = 0; won = false; }
+  else if (how === 'perfect') { stars = 3; won = true; }
+  else { stars = m.total === 1 ? 2 : m.total === 2 ? 1 : 0; won = stars > 0; }
+  game.result = { how, won, stars, mistakes: m, checks, turnsLeft: game.totalTurns - game.turn, hearts: game.hearts };
+  // Everyone gets to guess the dish (even after a loss — it's half the fun).
+  game.phase = 'guessing';
 }
 
-// The pieces of the dish's name; each client words it in its own language.
+function applyGuess(game, seat, dishId) {
+  if (game.phase !== 'guessing') return 'not_guessing';
+  if (!game.guessOptions.includes(dishId)) return 'invalid_move';
+  if (game.guesses[seat]) return null;
+  game.guesses[seat] = dishId;
+  if (game.guesses[0] && game.guesses[1]) {
+    game.result.guessed = game.guesses.map(g => g === game.dish);
+    game.phase = 'results';
+  }
+  return null;
+}
+
+// Pieces of the dish's name for the recap; clients word it in their language.
 function dishInfo(game) {
-  const ings = game.pot.filter(s => s.kind === 'ingredient').map(s => s.id);
-  const tags = tagsOf(ings);
-  const flavor = ['spicy', 'sweet', 'sour', 'savory'].sort((a, b) => (tags[b] || 0) - (tags[a] || 0))[0];
-  // Credit whoever added the most ingredients (ties → both).
   const by = [0, 0];
   game.pot.forEach(s => { if (s.kind === 'ingredient') by[s.by]++; });
-  return {
-    chefs: by[0] === by[1] ? [0, 1] : [by[0] > by[1] ? 0 : 1],
-    flavor: tags[flavor] ? flavor : null,
-    star: ings[0] || null,
-    dishType: game.recipe.dishType,
-  };
+  return { dish: game.dish, chefs: by[0] === by[1] ? [0, 1] : [by[0] > by[1] ? 0 : 1] };
 }
 
-// What a given seat is allowed to see. The partner's card stays hidden until results.
+// What a given seat is allowed to see. The dish and the partner's card stay hidden until results.
 function viewFor(game, seat) {
   const v = {
     mode: 'relay',
@@ -272,19 +298,30 @@ function viewFor(game, seat) {
     totalTurns: game.totalTurns,
     currentSeat: game.phase === 'playing' ? currentPlayer(game) : null,
     pot: game.pot,
-    dishType: game.recipe.dishType,
-    myCard: game.recipe.cards[seat],
+    hearts: game.hearts,
+    maxHearts: game.maxHearts,
+    reactions: game.reactions,
+    myCard: game.recipe.cards[seat].map(publicClue),
+    ingCount: DISHES[game.dish].ings.length,
+    actCount: DISHES[game.dish].acts.length,
   };
+  if (game.phase === 'guessing') {
+    v.guessOptions = game.guessOptions;
+    v.myGuess = game.guesses[seat];
+    v.partnerGuessed = !!game.guesses[1 - seat];
+    v.how = game.result.how;
+  }
   if (game.phase === 'results') {
-    v.cards = game.recipe.cards;
+    v.cards = game.recipe.cards.map(card => card.map(c => ({ ...publicClue(c), answer: c.id })));
     v.result = game.result;
-    v.dish = dishInfo(game);
-    v.target = game.recipe.target;
+    v.dish = game.dish;
+    v.dishInfo = dishInfo(game);
+    v.guesses = game.guesses;
   }
   return v;
 }
 
 module.exports = {
-  INGREDIENTS, DISH_TYPES, ACTIONS, TOTAL_TURNS, MARKET_SIZE, TIERS, tierFor,
-  createRelayGame, applyMove, viewFor, checkClue, generateRecipe, currentPlayer, dishInfo,
+  INGREDIENTS, DISHES, ACTIONS, TOTAL_TURNS, MARKET_SIZE, TIERS, tierFor,
+  createRelayGame, applyMove, applyGuess, viewFor, checkClue, makeClues, currentPlayer, dishInfo, mistakes,
 };

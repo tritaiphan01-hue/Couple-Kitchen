@@ -113,11 +113,16 @@
       </header>
 
       <div class="turn-banner" id="turn-banner"></div>
-      <div class="turn-dots" id="turn-dots"></div>
+      <div class="relay-meta">
+        <span class="relay-hearts" id="relay-hearts"></span>
+        <div class="turn-dots" id="turn-dots"></div>
+        <span class="relay-count" id="relay-count"></span>
+      </div>
 
       <div class="pot-area">
         <div class="pot-steam"><span></span><span></span><span></span></div>
         <div class="pot-contents" id="pot-contents"></div>
+        <div class="grandma" id="grandma"><span class="gma-face">👵</span><span class="gma-bubble" id="gma-bubble"></span></div>
         <div class="pot" aria-hidden="true">
           <div class="pot-rim"></div>
           <div class="pot-body"></div>
@@ -141,6 +146,7 @@
       </div>
 
       <div class="reactions" id="reactions"></div>
+      <div class="guess" id="guess" hidden></div>
     </section>
 
     <!-- SPLIT KITCHEN -->
@@ -266,6 +272,7 @@
       </div>
       <div class="results-cards" id="results-cards"></div>
       <div class="results-target" id="results-target"></div>
+      <div class="results-guesses" id="results-guesses"></div>
       <p class="reward" id="results-reward"></p>
       <div class="results-buttons">
         <button class="btn btn-primary" id="next-btn" data-i18n="results.again">🍲 Cook another</button>

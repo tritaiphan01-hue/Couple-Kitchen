@@ -212,8 +212,14 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 }
 .turn-banner.mine { background: var(--tomato); color: #fff; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { transform: scale(1.02); } }
-.turn-dots { display: flex; justify-content: center; gap: 6px; margin-bottom: 4px; }
-.turn-dots i { width: 12px; height: 12px; border-radius: 50%; background: var(--line); display: block; }
+.relay-meta { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.relay-hearts { font-size: 1rem; letter-spacing: 1px; white-space: nowrap; min-width: 64px; }
+.relay-hearts.hurt { animation: hurt .5s ease; }
+@keyframes hurt { 20%, 60% { transform: translateX(-4px) scale(1.15); } 40%, 80% { transform: translateX(4px) scale(1.15); } }
+.relay-count { font-size: .72rem; color: var(--fg-soft); text-align: right; min-width: 64px; line-height: 1.1; }
+.turn-dots { display: flex; justify-content: center; gap: 5px; }
+.turn-dots i { width: 11px; height: 11px; border-radius: 50%; background: var(--line); display: block; }
+.turn-dots i.done.yuck { box-shadow: 0 0 0 2px var(--tomato); }
 .turn-dots i.done.p0 { background: var(--honey); }
 .turn-dots i.done.p1 { background: var(--plum); }
 .turn-dots i.now { outline: 3px solid var(--fg); outline-offset: 1px; }
@@ -271,10 +277,11 @@ h1, h2, .topbar-title, .btn, .mode-name, .magnet-code { font-family: var(--font-
 .pantry button:active:not(:disabled), .actions button:active:not(:disabled) { transform: scale(.88); }
 .pantry button:disabled, .actions button:disabled { opacity: .3; cursor: default; }
 .pantry button.selected, .actions button.selected { background: var(--butter); border-color: var(--cocoa); }
-.actions { display: grid; grid-template-columns: repeat(3, 1fr) 1.4fr; gap: 6px; }
-.actions button { aspect-ratio: auto; height: 48px; font-size: .95rem; display: flex; gap: 3px; padding: 0 4px; white-space: nowrap; overflow: hidden; align-items: center; justify-content: center; }
+.actions { display: grid; grid-template-columns: repeat(4, 1fr) 1.35fr; gap: 5px; }
+.actions button { aspect-ratio: auto; height: 48px; font-size: .82rem; display: flex; flex-direction: column; gap: 0; padding: 0 2px; line-height: 1.05; white-space: nowrap; overflow: hidden; align-items: center; justify-content: center; }
 .actions button .e { font-size: 1.15rem; }
-.actions .add-btn { background: var(--tomato); color: #fff; border-color: var(--cocoa); font-family: var(--font-head); font-size: 1.05rem; }
+.actions .add-btn { background: var(--tomato); color: #fff; border-color: var(--cocoa); font-family: var(--font-head); font-size: 1rem; flex-direction: row; gap: 4px; }
+.actions .scoop { border-style: dashed; }
 .picked-name { text-align: center; font-size: .85rem; color: var(--fg-soft); min-height: 1.2em; }
 
 .reactions { display: flex; justify-content: center; gap: 8px; margin: 8px 0 0; }
@@ -649,3 +656,34 @@ body[data-decor="decor_ocean"] .fridge { background: linear-gradient(180deg, #F0
 .sprite.cat .ico { width: 1.1em; height: 1.1em; }
 .tile .st-e .ico { width: 1.05em; height: 1.05em; }
 .itm.st-burnt .e .ico { filter: grayscale(1) brightness(.35); }
+
+/* ───────── Recipe Relay: Grandma ───────── */
+.grandma { position: absolute; left: 0; top: 2px; display: flex; align-items: flex-start; gap: 4px; max-width: 64%; z-index: 3; pointer-events: none; }
+.gma-face { font-size: 2.1rem; line-height: 1; filter: drop-shadow(0 2px 0 rgba(0,0,0,.3)); transition: transform .2s ease; }
+.gma-bubble {
+  background: #FFF4E6; color: var(--cocoa); font-size: .8rem; font-weight: 800; line-height: 1.2;
+  padding: 6px 9px; border-radius: 12px 12px 12px 3px; border: 2px solid var(--cocoa); box-shadow: 0 2px 0 var(--cocoa);
+  animation: bubble .35s cubic-bezier(.3, 1.5, .6, 1);
+}
+@keyframes bubble { from { transform: scale(.6); opacity: 0; } }
+.grandma.yum .gma-bubble { background: #E8F4E6; }
+.grandma.yuck .gma-bubble, .grandma.angry .gma-bubble { background: #FDE2DD; border-color: var(--tomato); color: #A0322A; }
+.grandma.angry .gma-face { transform: scale(1.2) rotate(-8deg); }
+.grandma.shake .gma-face { animation: shake .4s ease; }
+
+/* Guess the dish */
+.guess { position: fixed; inset: 0; z-index: 42; background: rgba(40, 26, 20, .78); display: grid; place-items: center; padding: 16px; }
+.guess-card { background: var(--cream); color: var(--cocoa); border-color: var(--cocoa); box-shadow: 0 6px 0 var(--cocoa); }
+.guess-card.kicked { border-color: var(--tomato); box-shadow: 0 6px 0 var(--tomato); }
+.guess-verdict { font-family: var(--font-head); font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+.guess-card.kicked .guess-verdict { color: var(--tomato); animation: shake .5s ease 2; }
+.guess-sub { margin: 0 0 10px; color: var(--cocoa-soft); font-size: .9rem; }
+.guess-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.guess-opt { border: 3px solid var(--line); background: #fff; border-radius: 16px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--cocoa); }
+.guess-opt.on { border-color: var(--tomato); box-shadow: 0 3px 0 var(--tomato); }
+.guess-opt.dim { opacity: .45; }
+.go-e { font-size: 1.8rem; }
+.go-n { font-weight: 800; font-size: .9rem; line-height: 1.15; }
+.guess-status { margin: 10px 0 0; color: var(--cocoa-soft); min-height: 1.2em; }
+.results-guesses { text-align: center; font-size: .95rem; display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+.result-card .answer .ico, .results-target .answer .ico { width: 1.2em; height: 1.2em; vertical-align: -0.25em; }

@@ -324,9 +324,9 @@
     el('button', { 'aria-label': e, onclick: () => { socket.emit('react', { emoji: e }); floatEmoji(e, 3); sfx.heart(); buzz(10); } }, e)));
 
   function stepLabel(step) {
-    return step.kind === 'ingredient'
-      ? `${I18N.ingEmoji(step.id)} ${I18N.lower(I18N.ingName(step.id))}`
-      : I18N.actPast(step.id);
+    return step.kind === 'action'
+      ? I18N.actPast(step.id)
+      : `${I18N.ingEmoji(step.id)} ${I18N.lower(I18N.ingName(step.id))}`;
   }
 
   function renderSecret() {
@@ -336,57 +336,82 @@
     $('#secret-list').replaceChildren(...state.game.myCard.map(c => el('li', {}, I18N.clueText(c))));
   }
 
+  // Grandma's speech bubble: a fresh random line each time she reacts.
+  const gmaUI = { seen: -1, line: '' };
+  function gmaLine(r) {
+    if (!r) return t('gma.watching');
+    const key = r.mood === 'yum' ? 'gma.yum' : r.mood === 'yuck' ? 'gma.yuck' : r.mood === 'ok' ? 'gma.ok' : r.kind === 'remove' ? 'gma.oops' : 'gma.meh';
+    return I18N.pickLine(key);
+  }
+  const heartsText = g => '❤️'.repeat(Math.max(0, g.hearts)) + '🤍'.repeat(Math.max(0, g.maxHearts - g.hearts));
+
   // `quiet` re-renders (language switch, catalog load) skip sounds and animations.
   function renderRelay(quiet = false) {
     const g = state.game, room = state.room;
-    const mine = g.currentSeat === room.seat;
+    const playing = g.phase === 'playing';
+    const mine = playing && g.currentSeat === room.seat;
     const ingIds = g.market;   // today's market: 18 of the combined pantry
     const inPot = new Set(g.pot.filter(s => s.kind === 'ingredient').map(s => s.id));
     if (selection && selection.kind === 'ingredient' && inPot.has(selection.id)) selection = null;
+    if (selection && selection.kind === 'remove' && !inPot.size) selection = null;
     if (!mine) selection = null;
 
-    $('#relay-title').textContent = `${t('relay.title', { dish: I18N.dishTypeName(g.dishType), round: g.round })} ${'🌶️'.repeat(g.tier + 1)}`;
+    $('#relay-title').textContent = `${t('relay.title', { round: g.round })} ${'🌶️'.repeat(g.tier + 1)}`;
     $('#screen-relay').classList.toggle('many-clues', g.myCard.length > 3);
     const bannerEl = $('#turn-banner');
     bannerEl.classList.toggle('mine', mine);
-    bannerEl.textContent = mine
-      ? t('relay.yourTurn', room.seat === 0 ? '💛' : '💜', g.totalTurns - g.turn)
+    bannerEl.textContent = !playing ? t('gma.watching')
+      : mine ? t('relay.yourTurn', room.seat === 0 ? '💛' : '💜', g.totalTurns - g.turn)
       : t('relay.theirTurn', { name: playerName(g.currentSeat) });
 
+    $('#relay-hearts').textContent = heartsText(g);
+    $('#relay-count').textContent = t('relay.meta', { i: g.ingCount, a: g.actCount });
     $('#turn-dots').replaceChildren(...Array.from({ length: g.totalTurns }, (_, i) => {
-      const step = g.pot[i];
-      return el('i', { class: [step ? 'done p' + step.by : '', i === g.turn ? 'now' : ''].join(' ') });
+      const r = g.reactions[i];
+      return el('i', { class: [r ? 'done p' + r.by + ' ' + r.mood : '', i === g.turn && playing ? 'now' : ''].join(' ') });
     }));
 
     // Pot contents: ingredients float in a loose pile; only new ones drop in.
     const sameRound = prev && prev.game && prev.game.mode === 'relay' && prev.game.round === g.round;
-    const prevLen = quiet ? g.pot.length : sameRound ? prev.game.pot.length : 0;
+    const prevSteps = quiet ? g.reactions.length : sameRound ? prev.game.reactions.length : 0;
+    const prevIngs = sameRound ? new Set(prev.game.pot.filter(s => s.kind === 'ingredient').map(s => s.id)) : new Set();
     const ings = g.pot.filter(s => s.kind === 'ingredient');
     $('#pot-contents').replaceChildren(...ings.map((s, i) => {
       const spot = [[50, 40], [24, 50], [76, 48], [38, 14], [64, 18], [12, 22], [88, 24], [50, 0]][i % 8];
       const n = iconEl('span', { class: 'ing p' + s.by }, relayIcon(s.id));
       n.style.left = `calc(${spot[0]}% - 15px)`; n.style.top = spot[1] + 'px';
-      if (g.pot.indexOf(s) < prevLen) n.style.animation = 'simmer 3s ease-in-out infinite';
+      if (quiet || prevIngs.has(s.id)) n.style.animation = 'simmer 3s ease-in-out infinite';
       n.style.animationDelay = (i * 0.3) + 's';
       return n;
     }));
-    const last = g.pot[g.pot.length - 1];
-    if (last && g.pot.length > prevLen && last.kind === 'action') {
+
+    // What just happened + Grandma's reaction to it
+    const last = g.reactions[g.reactions.length - 1];
+    if (last && g.reactions.length > prevSteps && last.kind === 'action') {
       const pot = $('.pot'); pot.classList.remove('stir'); void pot.offsetWidth; pot.classList.add('stir');
     }
     let lastText = t('relay.empty');
     if (last) {
-      const me = last.by === room.seat, name = playerName(last.by);
-      lastText = last.kind === 'ingredient'
-        ? t(me ? 'relay.youAdded' : 'relay.theyAdded', { name, thing: stepLabel(last) })
-        : t(me ? 'relay.youDid' : 'relay.theyDid', { name, action: stepLabel(last) });
+      const me = last.by === room.seat, name = playerName(last.by), thing = stepLabel(last);
+      lastText = last.kind === 'ingredient' ? t(me ? 'relay.youAdded' : 'relay.theyAdded', { name, thing })
+        : last.kind === 'remove' ? t(me ? 'relay.youScooped' : 'relay.theyScooped', { name, thing })
+        : t(me ? 'relay.youDid' : 'relay.theyDid', { name, action: thing });
     }
-    // While choosing, show what the tapped emoji actually is (🌾 = Sả / Lemongrass).
+    if (gmaUI.seen !== g.reactions.length || !gmaUI.line || quiet) {
+      gmaUI.seen = g.reactions.length;
+      gmaUI.line = g.hearts <= 0 ? t('gma.kicked') : gmaLine(last);
+    }
+    const gma = $('#grandma');
+    gma.className = 'grandma ' + (last ? last.mood : '') + (g.hearts <= 0 ? ' angry' : '');
+    $('#gma-bubble').textContent = gmaUI.line;
+
+    // While choosing, show what the tapped icon actually is (🌾 = Sả / Lemongrass).
     const lm = $('#last-move');
     lm.classList.toggle('picking', !!selection);
-    lm.textContent = selection
-      ? `👉 ${selection.kind === 'ingredient' ? I18N.ingEmoji(selection.id) + ' ' + I18N.ingName(selection.id) : I18N.actEmoji(selection.id) + ' ' + I18N.actName(selection.id)}`
-      : lastText;
+    lm.textContent = !selection ? lastText
+      : selection.kind === 'ingredient' ? `👉 ${I18N.ingEmoji(selection.id)} ${I18N.ingName(selection.id)}`
+      : selection.kind === 'remove' ? `👉 ${t('relay.scoopIt')}`
+      : `👉 ${I18N.actEmoji(selection.id)} ${I18N.actName(selection.id)}`;
 
     renderSecret();
 
@@ -397,21 +422,34 @@
       onclick: () => { selection = { kind: 'ingredient', id }; sfx.tap(); buzz(8); renderRelay(true); },
     }, iconEl('span', { class: 'pi' }, relayIcon(id)))));
 
+    const pick = sel => () => { selection = sel; sfx.tap(); buzz(8); renderRelay(true); };
     const actionBtns = Object.keys(catalog.actions).map(id => el('button', {
-      class: selection && selection.id === id ? 'selected' : '',
-      disabled: !mine,
-      onclick: () => { selection = { kind: 'action', id }; sfx.tap(); buzz(8); renderRelay(true); },
+      class: selection && selection.kind === 'action' && selection.id === id ? 'selected' : '',
+      disabled: !mine, onclick: pick({ kind: 'action', id }),
     }, el('span', { class: 'e' }, I18N.actEmoji(id)), I18N.actName(id)));
+    actionBtns.push(el('button', {
+      class: 'scoop' + (selection && selection.kind === 'remove' ? ' selected' : ''),
+      disabled: !mine || !inPot.size, onclick: pick({ kind: 'remove' }),
+    }, el('span', { class: 'e' }, '↩️'), t('relay.scoop')));
     const addLabel = !mine ? t('relay.wait')
       : !selection ? t('relay.pick')
       : selection.kind === 'ingredient' ? t('relay.add', { emoji: I18N.ingEmoji(selection.id) })
+      : selection.kind === 'remove' ? t('relay.scoopIt')
       : t('relay.doIt', { action: I18N.actName(selection.id) });
     $('#actions').replaceChildren(...actionBtns, el('button', { class: 'add-btn', disabled: !mine || !selection, onclick: commitMove }, addLabel));
 
     if (quiet) return;
-    const wasMine = sameRound && prev.game.currentSeat === room.seat;
+    // Sounds for Grandma's reaction, and for your turn.
+    if (last && g.reactions.length > prevSteps) {
+      if (last.mood === 'yuck') {
+        sfx.err(); buzz([60, 40, 60]); floatEmoji('💔', 3);
+        const h = $('#relay-hearts'); h.classList.remove('hurt'); void h.offsetWidth; h.classList.add('hurt');
+        gma.classList.add('shake');
+      } else if (last.mood === 'yum') { sfx.done(); floatEmoji('😋', 1); }
+      else sfx.plop();
+    }
+    const wasMine = sameRound && prev.game.phase === 'playing' && prev.game.currentSeat === room.seat;
     if (mine && !wasMine) { sfx.yourTurn(); buzz([30, 40, 30]); }
-    else if (g.pot.length > prevLen) sfx.plop();
   }
 
   function commitMove() {
@@ -422,31 +460,70 @@
     selection = null;
   }
 
+  // ───────── Guess the dish ─────────
+  function renderGuess(quiet) {
+    const g = state.game, box = $('#guess');
+    if (g.phase !== 'guessing') { box.hidden = true; return; }
+    const verdict = g.how === 'kicked' ? t('gma.kicked') : g.how === 'perfect' ? t('results.perfect') : '👵 ' + t('gma.watching');
+    const card = el('div', { class: 'intro-card guess-card' + (g.how === 'kicked' ? ' kicked' : '') },
+      el('div', { class: 'guess-verdict' }, verdict),
+      el('h2', {}, t('guess.title')),
+      el('p', { class: 'guess-sub' }, t('guess.sub')),
+      el('div', { class: 'guess-options' }, g.guessOptions.map(id => {
+        const d = I18N.relayDish(id);
+        return tapBtn('guess-opt' + (g.myGuess === id ? ' on' : '') + (g.myGuess && g.myGuess !== id ? ' dim' : ''),
+          () => { if (g.myGuess) return; sfx.tap(); buzz(10); socket.emit('relay:guess', { dish: id }, res => { if (res && res.error) toast(errText(res.error)); }); },
+          el('span', { class: 'go-e' }, d.emoji), el('span', { class: 'go-n' }, d.name[I18N.lang]));
+      })),
+      el('p', { class: 'guess-status' }, g.myGuess ? t('guess.waiting', { name: playerName(1 - state.room.seat) })
+        : g.partnerGuessed ? t('guess.partnerDone', { name: playerName(1 - state.room.seat) }) : ''));
+    box.replaceChildren(card);
+    const wasHidden = box.hidden;
+    box.hidden = false;
+    if (wasHidden && !quiet) {
+      if (g.how === 'kicked') { sfx.err(); buzz([100, 50, 200]); document.body.classList.add('lights-on'); setTimeout(() => document.body.classList.remove('lights-on'), 900); }
+      else if (g.how === 'perfect') { sfx.ding(); floatEmoji('💖', 6); }
+    }
+  }
+
   // ───────── Results ─────────
   $('#next-btn').addEventListener('click', () => { sfx.tap(); cardHidden = true; socket.emit('relay:next'); });
   $('#results-lobby-btn').addEventListener('click', () => { sfx.tap(); socket.emit('room:lobby'); });
 
   function renderResults(quiet = false) {
-    const g = state.game, room = state.room;
+    const g = state.game, room = state.room, r = g.result;
     const names = [playerName(0), playerName(1)];
+    const dish = I18N.relayDish(g.dish);
     $('#results-bowl').replaceChildren(...g.pot.filter(s => s.kind === 'ingredient').map(s => iconEl('span', { title: I18N.ingName(s.id) }, relayIcon(s.id))));
-    $('#results-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < g.result.stars ? '' : 'off' }, '⭐')));
-    $('#results-name').textContent = I18N.dishName(g.dish, names);
-    $('#results-score').textContent = t('results.score', { met: g.result.met, total: g.result.total, verdict: t('results.verdicts')[g.result.stars] });
+    $('#results-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < r.stars ? '' : 'off' }, '⭐')));
+    const name = I18N.dishName(g.dishInfo, names);
+    $('#results-name').textContent = `${dish.emoji} ${r.how === 'perfect' ? name : t('results.attempt', { dish: name })}`;
+    $('#results-score').textContent = r.how === 'kicked' ? t('results.kicked') : r.how === 'perfect' ? t('results.perfect')
+      : r.stars > 0 ? t('results.close', r.mistakes.total) : t('results.far', r.mistakes.total);
 
     $('#results-cards').replaceChildren(...[0, 1].map(seat => el('div', { class: 'result-card p' + seat },
       el('h3', {}, seat === room.seat ? t('results.yourCard') : t('results.theirCard', { name: names[seat] })),
-      el('ul', {}, ...g.cards[seat].map((c, i) => el('li', { class: g.result.checks[seat][i] ? 'ok' : 'no' }, I18N.clueText(c)))),
+      el('ul', {}, ...g.cards[seat].map((c, i) => {
+        const li = el('li', { class: r.checks[seat][i] ? 'ok' : 'no' }, I18N.clueText(c));
+        if (c.type === 'riddle') { li.append(' → '); li.append(iconEl('span', { class: 'answer' }, relayIcon(c.answer))); li.append(' ' + I18N.lower(I18N.ingName(c.answer))); }
+        return li;
+      })),
     )));
-    const items = [...g.target.ingredients.map(I18N.ingEmoji), ...g.target.actions.map(I18N.actEmoji)].join(' ');
-    $('#results-target').textContent = t('results.secret', { items });
-    $('#results-reward').textContent = g.result.reward ? t('reward', g.result.reward) : '';
+    const recipe = el('span', {});
+    dish.ings.forEach(id => recipe.append(iconEl('span', { class: 'answer', title: I18N.ingName(id) }, relayIcon(id))));
+    recipe.append(' ' + dish.acts.map(I18N.actEmoji).join(' '));
+    const target = $('#results-target');
+    target.replaceChildren(t('results.recipe', { items: '' }), recipe);
+    $('#results-guesses').replaceChildren(...[0, 1].map(seat => el('div', {}, r.guessed && r.guessed[seat]
+      ? t('results.guessRight', { name: names[seat] })
+      : t('results.guessWrong', { name: names[seat], dish: I18N.relayDish(g.guesses[seat]).name[I18N.lang] }))));
+    $('#results-reward').textContent = r.reward ? t('reward', r.reward) : '';
 
     if (quiet) return;
     const justFinished = !(prev && prev.game && prev.game.phase === 'results' && prev.game.round === g.round);
     if (justFinished) {
       sfx.ding(); buzz([40, 60, 40]);
-      if (g.result.stars >= 2) setTimeout(() => floatEmoji(g.result.stars === 3 ? '💖' : '✨', 8), 600);
+      if (r.stars >= 2) setTimeout(() => floatEmoji(r.stars === 3 ? '💖' : '✨', 8), 600);
     }
   }
 
@@ -1221,7 +1298,8 @@
         if (!prev || !prev.game || prev.game.round !== game.round) cardHidden = true;
         show('relay', 'relay');
         renderRelay(quiet);
-        showHowto('relay');
+        renderGuess(quiet);
+        if (game.phase === 'playing') showHowto('relay');
       }
     }
   }

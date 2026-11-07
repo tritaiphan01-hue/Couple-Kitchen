@@ -41,7 +41,31 @@
       'mode.sneak.name': 'Midnight Snack',
       'mode.sneak.desc': "Sneak · plan quiet moves, don't wake the roommate",
 
-      'relay.title': 'Mystery {dish} #{round}',
+      'relay.title': 'Mystery dish #{round}',
+      'relay.meta': ({ i, a }) => `${i} ingredient${i > 1 ? 's' : ''} · ${a} action${a > 1 ? 's' : ''}`,
+      'relay.scoop': 'Scoop',
+      'relay.scoopIt': '↩ Scoop out',
+      'relay.youScooped': 'You scooped out {thing}',
+      'relay.theyScooped': '{name} scooped out {thing}',
+      'gma.yum': ['Mmm, that’s it! 😋', 'Smells right! 😋', 'Good, good! 😋', 'Just like I make it! 😋'],
+      'gma.yuck': ['What is THAT?! 🤢', 'Who taught you that?! 🤢', 'No no no! 🤢', 'Are you trying to poison me?! 🤢'],
+      'gma.meh': ['You already did that 🙄', 'Again? 🙄'],
+      'gma.oops': ['Why take that out? 😕', 'Hmm, that was fine… 😕'],
+      'gma.ok': ['Good, out it goes 👍', 'Better! 👍'],
+      'gma.kicked': 'OUT of my kitchen! 👵💢',
+      'gma.watching': 'Grandma is watching… 👀',
+      'guess.title': 'What did you just cook?',
+      'guess.sub': 'Guess the dish. Right guesses earn bonus coins!',
+      'guess.waiting': 'Waiting for {name} to guess…',
+      'guess.partnerDone': '{name} has guessed 🤫',
+      'results.perfect': 'Grandma approves! 👵💖',
+      'results.kicked': 'Grandma kicked you out! 👵💢',
+      'results.close': n => `So close! ${n} thing${n > 1 ? 's' : ''} off 😅`,
+      'results.far': n => `Grandma won’t touch it. ${n} things off 🙅`,
+      'results.recipe': 'The recipe: {items}',
+      'results.guessRight': '✅ {name} guessed it',
+      'results.guessWrong': '❌ {name} guessed {dish}',
+      'results.attempt': '{dish} (attempt)',
       'relay.yourTurn': (heart, n) => `Your turn ${heart} · ${n} step${n > 1 ? 's' : ''} left`,
       'relay.theirTurn': '{name} is thinking… 🤔',
       'relay.empty': 'The pot is empty. Let’s cook!',
@@ -59,11 +83,8 @@
       'relay.leaveConfirm': 'Leave this dish and go back to the kitchen? It ends the round for both of you.',
 
       'results.title': 'Taste test!',
-      'results.score': '{met}/{total} clues matched · {verdict}',
-      'results.verdicts': ['Hmm… the cat ate it 🐈', 'Edible! Kinda 😅', 'So tasty! 😋', 'Chef’s kiss! 👩‍🍳💋'],
       'results.yourCard': 'Your card',
       'results.theirCard': '{name}’s card',
-      'results.secret': 'The secret recipe was: {items} (any dish that matches every clue gets 3 stars)',
       'results.again': '🍲 Cook another',
       'results.lobby': 'Back to kitchen',
 
@@ -203,15 +224,17 @@
       'err.invalid_plan': 'Can’t go there',
       'err.empty_plan': 'Plan at least one step first',
       'err.not_planning': 'Wait for the moves to finish',
+      'err.nothing_to_remove': 'The pot is empty',
+      'err.not_guessing': 'Not time to guess yet',
       'lobby.shop': '🛒 Shop',
       'howto.gotIt': "Got it, let's cook! 👍",
       'howto.button': '❓ How to play',
       'howto.relay.title': 'How to play Recipe Relay',
       'howto.relay.steps': [
-        '🔒 You each get a secret card with clues about a mystery dish. Your partner’s card has different clues.',
-        '🥕 Take turns: each turn, add one ingredient or do one action (stir, boil, salt).',
-        '🤫 You can talk, but don’t read your card out! Hint with what you add (“why the chili?” “trust me 😏”).',
-        '⭐ After the last step, the dish is judged against BOTH cards. Match every clue for 3 stars.',
+        '🔒 Grandma wants a real dish. Each of you gets half the recipe as riddles (“a red, sour veggie”) and the steps it needs.',
+        '🥕 Take turns: add one ingredient, do one action (stir, boil, salt), or scoop the last ingredient back out.',
+        '👵 Grandma reacts to every step. Something wrong costs a ❤️. Lose them all and she kicks you out: game over!',
+        '⭐ Cook the exact recipe for 3 stars, then both guess which dish it was for bonus coins.',
       ],
       'howto.relay.where': 'Where are you playing?',
       'howto.relay.together': '🛋️ Side by side',
@@ -291,7 +314,31 @@
       'mode.sneak.name': 'Ăn Vụng Nửa Đêm',
       'mode.sneak.desc': 'Rón rén · lên kế hoạch thật khẽ, đừng đánh thức bạn cùng phòng',
 
-      'relay.title': '{dish} bí ẩn #{round}',
+      'relay.title': 'Món bí ẩn #{round}',
+      'relay.meta': ({ i, a }) => `${i} nguyên liệu · ${a} thao tác`,
+      'relay.scoop': 'Vớt',
+      'relay.scoopIt': '↩ Vớt ra',
+      'relay.youScooped': 'Bạn đã vớt {thing} ra',
+      'relay.theyScooped': '{name} đã vớt {thing} ra',
+      'gma.yum': ['Ừm, đúng rồi đó! 😋', 'Thơm quá con ơi! 😋', 'Được, được! 😋', 'Giống bà nấu ghê! 😋'],
+      'gma.yuck': ['Cái gì vậy con?! 🤢', 'Ai dạy con bỏ cái đó?! 🤢', 'Không không không! 🤢', 'Tính đầu độc bà hả?! 🤢'],
+      'gma.meh': ['Làm rồi mà con 🙄', 'Lại nữa hả? 🙄'],
+      'gma.oops': ['Sao vớt ra vậy? 😕', 'Ủa, cái đó đúng mà… 😕'],
+      'gma.ok': ['Ừ, vớt ra là phải 👍', 'Vậy mới được! 👍'],
+      'gma.kicked': 'RA KHỎI BẾP CỦA BÀ! 👵💢',
+      'gma.watching': 'Bà đang nhìn đó… 👀',
+      'guess.title': 'Hai bạn vừa nấu món gì?',
+      'guess.sub': 'Đoán tên món. Đoán đúng được thêm xu!',
+      'guess.waiting': 'Đang chờ {name} đoán…',
+      'guess.partnerDone': '{name} đã đoán xong 🤫',
+      'results.perfect': 'Bà khen nức nở! 👵💖',
+      'results.kicked': 'Bà đuổi ra khỏi bếp rồi! 👵💢',
+      'results.close': n => `Suýt nữa! Sai ${n} chỗ 😅`,
+      'results.far': n => `Bà không thèm nếm. Sai ${n} chỗ 🙅`,
+      'results.recipe': 'Công thức: {items}',
+      'results.guessRight': '✅ {name} đoán đúng',
+      'results.guessWrong': '❌ {name} đoán {dish}',
+      'results.attempt': '{dish} (bản thử)',
       'relay.yourTurn': (heart, n) => `Tới lượt bạn ${heart} · còn ${n} bước`,
       'relay.theirTurn': '{name} đang suy nghĩ… 🤔',
       'relay.empty': 'Nồi còn trống trơn. Nấu thôi!',
@@ -309,11 +356,8 @@
       'relay.leaveConfirm': 'Bỏ món này và quay về bếp? Ván này sẽ kết thúc cho cả hai.',
 
       'results.title': 'Nếm thử nào!',
-      'results.score': 'Đúng {met}/{total} gợi ý · {verdict}',
-      'results.verdicts': ['Ơ… con mèo ăn mất rồi 🐈', 'Ăn được! Chắc vậy 😅', 'Ngon quá trời! 😋', 'Đỉnh của chóp! 👩‍🍳💋'],
       'results.yourCard': 'Thẻ của bạn',
       'results.theirCard': 'Thẻ của {name}',
-      'results.secret': 'Công thức bí mật là: {items} (món nào khớp mọi gợi ý đều được 3 sao)',
       'results.again': '🍲 Nấu món nữa',
       'results.lobby': 'Về lại bếp',
 
@@ -452,15 +496,17 @@
       'err.invalid_plan': 'Không đi được chỗ đó',
       'err.empty_plan': 'Lên kế hoạch ít nhất một bước đã',
       'err.not_planning': 'Chờ các bước chạy xong đã',
+      'err.nothing_to_remove': 'Nồi đang trống mà',
+      'err.not_guessing': 'Chưa tới lúc đoán',
       'lobby.shop': '🛒 Cửa hàng',
       'howto.gotIt': 'Hiểu rồi, nấu thôi! 👍',
       'howto.button': '❓ Cách chơi',
       'howto.relay.title': 'Cách chơi Tiếp Sức Công Thức',
       'howto.relay.steps': [
-        '🔒 Mỗi người có một thẻ bí mật ghi gợi ý về món ăn bí ẩn. Thẻ của người ấy ghi gợi ý khác.',
-        '🥕 Thay phiên nhau: mỗi lượt bỏ một nguyên liệu hoặc làm một thao tác (khuấy, đun, nêm).',
-        '🤫 Được nói chuyện, nhưng đừng đọc thẻ ra! Gợi ý bằng món bạn bỏ vào (“sao bỏ ớt vậy?” “tin anh đi 😏”).',
-        '⭐ Sau bước cuối, món ăn được chấm theo CẢ HAI thẻ. Khớp mọi gợi ý thì được 3 sao.',
+        '🔒 Bà nội muốn ăn một món thật. Mỗi người giữ nửa công thức dưới dạng câu đố (“một loại rau củ màu đỏ, vị chua”) và các thao tác cần làm.',
+        '🥕 Thay phiên nhau: bỏ một nguyên liệu, làm một thao tác (khuấy, đun, nêm), hoặc vớt nguyên liệu vừa bỏ ra.',
+        '👵 Bà phản ứng với từng bước. Làm sai là mất một ❤️. Hết tim là bà đuổi ra khỏi bếp: thua luôn!',
+        '⭐ Nấu đúng y công thức để được 3 sao, rồi cả hai đoán tên món để được thêm xu.',
       ],
       'howto.relay.where': 'Hai bạn đang chơi ở đâu?',
       'howto.relay.together': '🛋️ Ngồi cạnh nhau',
@@ -504,37 +550,33 @@
     },
   };
 
-  // Tag words for clues. g = group: cat(egory), color, flavor.
+  // Riddle words for each ingredient tag.
+  //   noun: how the tag reads as "what it is"; adj: how it reads as a describing word.
   const TAGS = {
-    veg:     { g: 'cat',    en: ['a veggie', 'veggies'],       vi: 'rau củ' },
-    fruit:   { g: 'cat',    en: ['a fruit', 'fruit'],          vi: 'trái cây' },
-    dairy:   { g: 'cat',    en: ['dairy', 'dairy'],            vi: 'đồ sữa' },
-    protein: { g: 'cat',    en: ['protein', 'protein'],        vi: 'món đạm' },
-    meat:    { g: 'cat',    en: ['meat', 'meat'],              vi: 'thịt' },
-    seafood: { g: 'cat',    en: ['seafood', 'seafood'],        vi: 'hải sản' },
-    grain:   { g: 'cat',    en: ['a grain', 'grains'],         vi: 'cơm, bún hoặc mì' },
-    herb:    { g: 'cat',    en: ['herbs', 'herbs'],            vi: 'rau thơm' },
-    orange:  { g: 'color',  en: 'orange', vi: 'cam' },
-    white:   { g: 'color',  en: 'white',  vi: 'trắng' },
-    red:     { g: 'color',  en: 'red',    vi: 'đỏ' },
-    brown:   { g: 'color',  en: 'brown',  vi: 'nâu' },
-    yellow:  { g: 'color',  en: 'yellow', vi: 'vàng' },
-    green:   { g: 'color',  en: 'green',  vi: 'xanh lá' },
-    sweet:   { g: 'flavor', en: 'sweet',  vi: 'ngọt' },
-    savory:  { g: 'flavor', en: 'savory', vi: 'đậm đà' },
-    spicy:   { g: 'flavor', en: 'SPICY 🌶️', vi: 'CAY 🌶️' },
-    sour:    { g: 'flavor', en: 'sour',   vi: 'chua' },
-    starchy: { g: 'cat',    en: ['something starchy', 'starchy things'], vi: 'tinh bột' },
-    fresh:   { g: 'flavor', en: 'fresh',  vi: 'tươi mát' },
-  };
-
-  const FLAVOR_WORDS = {
-    en: { spicy: 'Spicy', sweet: 'Sweet', sour: 'Sour', savory: 'Savory', none: 'Mystery' },
-    vi: { spicy: 'cay', sweet: 'ngọt', sour: 'chua', savory: 'đậm đà', none: 'bí ẩn' },
+    meat:    { noun: { en: 'meat', vi: 'loại thịt' },          adj: { en: 'meaty', vi: 'là thịt' } },
+    seafood: { noun: { en: 'seafood', vi: 'đồ biển' },         adj: { en: 'from the sea', vi: 'từ biển' } },
+    dairy:   { noun: { en: 'dairy food', vi: 'món từ sữa' },   adj: { en: 'milky', vi: 'từ sữa' } },
+    herb:    { noun: { en: 'herb', vi: 'loại rau thơm' },      adj: { en: 'herby', vi: 'thơm' } },
+    grain:   { noun: { en: 'grain', vi: 'loại tinh bột' },     adj: { en: 'grainy', vi: 'tinh bột' } },
+    fruit:   { noun: { en: 'fruit', vi: 'loại trái cây' },     adj: { en: 'fruity', vi: 'trái cây' } },
+    veg:     { noun: { en: 'veggie', vi: 'loại rau củ' },      adj: { en: 'veggie', vi: 'rau củ' } },
+    protein: { noun: { en: 'protein', vi: 'món đạm' },         adj: { en: 'protein-rich', vi: 'giàu đạm' } },
+    orange:  { adj: { en: 'orange', vi: 'màu cam' } },
+    white:   { adj: { en: 'white', vi: 'màu trắng' } },
+    red:     { adj: { en: 'red', vi: 'màu đỏ' } },
+    brown:   { adj: { en: 'brown', vi: 'màu nâu' } },
+    yellow:  { adj: { en: 'yellow', vi: 'màu vàng' } },
+    green:   { adj: { en: 'green', vi: 'màu xanh lá' } },
+    sweet:   { adj: { en: 'sweet', vi: 'vị ngọt' } },
+    savory:  { adj: { en: 'savory', vi: 'đậm đà' } },
+    spicy:   { adj: { en: 'SPICY 🌶️', vi: 'CAY 🌶️' } },
+    sour:    { adj: { en: 'sour', vi: 'vị chua' } },
+    starchy: { adj: { en: 'starchy', vi: 'nhiều tinh bột' } },
+    fresh:   { adj: { en: 'fresh', vi: 'tươi mát' } },
   };
 
   let lang = 'en';
-  let catalog = { ingredients: {}, dishTypes: {}, actions: {}, rush: { ingredients: {}, dishes: {} } };
+  let catalog = { ingredients: {}, dishes: {}, actions: {}, rush: { ingredients: {}, dishes: {} } };
   const allIngredients = {};
 
   const fill = (s, vars = {}) => String(s).replace(/\{(\w+)\}/g, (_, k) => (k in vars ? vars[k] : `{${k}}`));
@@ -564,55 +606,38 @@
     return `${actEmoji(id)} ${{ stir: 'stirred', boil: 'boiled', salt: 'salted' }[id] || id}`;
   }
 
+  // "a red, sour veggie" / "một loại rau củ màu đỏ, vị chua"
+  function riddleText(tags) {
+    const [first, ...rest] = tags;
+    const nounTag = TAGS[first] && TAGS[first].noun ? first : null;
+    const adjs = (nounTag ? rest : tags).map(tg => (TAGS[tg] ? TAGS[tg].adj[lang] : tg));
+    if (lang === 'vi') return nounTag ? `một ${TAGS[nounTag].noun.vi}${adjs.length ? ' ' + adjs.join(', ') : ''}` : `thứ gì đó ${adjs.join(', ')}`;
+    if (!nounTag) return `something ${adjs.join(' & ')}`;
+    const noun = TAGS[nounTag].noun.en;
+    const phrase = [adjs.join(', '), noun].filter(Boolean).join(' ');
+    return `${/^[aeiou]/i.test(phrase) ? 'an' : 'a'} ${phrase}`;
+  }
+
   function clueText(c) {
-    const tag = TAGS[c.tag];
-    if (lang === 'vi') {
-      const word = tag && (tag.g === 'color' ? `món màu ${tag.vi}` : tag.g === 'flavor' ? `vị ${tag.vi}` : tag.vi);
-      switch (c.type) {
-        case 'hasTag':    return `có ${word}`;
-        case 'noTag':     return `KHÔNG có ${word}`;
-        case 'minTag':    return `ít nhất ${c.n} món ${tag.g === 'color' ? 'màu ' + tag.vi : tag.vi}`;
-        case 'hasIng':    return `phải có ${ingEmoji(c.id)} ${lower(ingName(c.id))}`;
-        case 'noIng':     return `tuyệt đối không có ${ingEmoji(c.id)} ${lower(ingName(c.id))}`;
-        case 'hasAction': return `phải ${actEmoji(c.id)} ${lower(actName(c.id))} ít nhất một lần`;
-        case 'noAction':  return `không bao giờ ${actEmoji(c.id)} ${lower(actName(c.id))}`;
-        case 'maxIngs':   return `không quá ${c.n} nguyên liệu`;
-        case 'minIngs':   return `ít nhất ${c.n} nguyên liệu`;
-        case 'lastIs':    return `bước cuối phải là ${actEmoji(c.id)} ${lower(actName(c.id))}`;
-      }
-    } else {
-      const one = tag && (tag.g === 'cat' ? tag.en[0] : `something ${tag.en}`);
-      const many = tag && (tag.g === 'cat' ? tag.en[1] : `${tag.en} things`);
-      const past = { stir: 'stirred', boil: 'boiled', salt: 'salted' };
-      switch (c.type) {
-        case 'hasTag':    return `has ${one}`;
-        case 'noTag':     return `NO ${many}`;
-        case 'minTag':    return `at least ${c.n}× ${many}`;
-        case 'hasIng':    return `must include ${ingEmoji(c.id)} ${lower(ingName(c.id))}`;
-        case 'noIng':     return `absolutely no ${ingEmoji(c.id)} ${lower(ingName(c.id))}`;
-        case 'hasAction': return `must be ${actEmoji(c.id)} ${past[c.id]} at some point`;
-        case 'noAction':  return `never ${actEmoji(c.id)} ${lower(actName(c.id))} it`;
-        case 'maxIngs':   return `no more than ${c.n} ingredients`;
-        case 'minIngs':   return `at least ${c.n} ingredients`;
-        case 'lastIs':    return `finish with a ${actEmoji(c.id)} ${lower(actName(c.id))}`;
-      }
+    if (c.type === 'riddle') return riddleText(c.tags);
+    if (c.type === 'hasAction') {
+      if (lang === 'vi') return `cần ${actEmoji(c.id)} ${lower(actName(c.id))}`;
+      return `needs ${actEmoji(c.id)} ${{ stir: 'stirring', boil: 'boiling', salt: 'salt' }[c.id] || c.id}`;
     }
     return '???';
   }
 
-  function dishTypeName(key) {
-    return catalog.dishTypes[key] ? catalog.dishTypes[key][lang] : key;
+  const relayDish = id => (catalog.dishes && catalog.dishes[id]) || { emoji: '🍲', name: { en: id, vi: id }, ings: [], acts: [] };
+
+  // EN: "Tri & Mai's Beef Phở"   VI: "Phở bò của Trí & Mai"
+  function dishName(info, names) {
+    const chefs = info.chefs.map(i => names[i]).join(' & ');
+    const name = relayDish(info.dish).name[lang];
+    return lang === 'vi' ? `${name} của ${chefs}` : `${chefs}'s ${name}`;
   }
 
-  // EN: "Tri & Mai's Spicy Shrimp Phở"   VI: "Phở tôm cay của Tri & Mai"
-  function dishName(dish, names) {
-    const chefs = dish.chefs.map(i => names[i]).join(' & ');
-    const type = dishTypeName(dish.dishType);
-    const flavor = FLAVOR_WORDS[lang][dish.flavor || 'none'];
-    const star = dish.star ? ingName(dish.star) : '';
-    if (lang === 'vi') return [type, star && lower(star), flavor, 'của', chefs].filter(Boolean).join(' ');
-    return [`${chefs}'s`, flavor, star, type].filter(Boolean).join(' ');
-  }
+  // A random line from a list of lines.
+  const pickLine = key => { const lines = t(key); return Array.isArray(lines) ? lines[Math.floor(Math.random() * lines.length)] : lines; };
 
   function detectLang() {
     try {
@@ -639,7 +664,7 @@
   const rushDish = id => catalog.rush.dishes[id] || { emoji: '❓', name: { en: id, vi: id }, comps: [] };
 
   window.I18N = {
-    t, setLang, detectLang, setCatalog, clueText, dishName, dishTypeName, rushIng, rushDish, sneakIng,
+    t, setLang, detectLang, setCatalog, clueText, dishName, relayDish, pickLine, rushIng, rushDish, sneakIng,
     ingName, ingEmoji, actName, actEmoji, actPast, lower,
     get lang() { return lang; },
   };
