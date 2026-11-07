@@ -6,7 +6,7 @@ A cozy co-op cooking game for two, played online from your phones.
 | Mode | Status | Vibe |
 |---|---|---|
 | 🍷 **Recipe Relay** | ✅ playable | Turn-based. Each of you holds half of a secret recipe card. Take turns adding one ingredient or action to a shared pot; after 8 steps the dish is judged against both cards (0–3 ⭐). |
-| 🔥 **Split Kitchen** | 🚧 next | Real-time. Each of you sees only half the kitchen and passes ingredients across. |
+| 🔥 **Split Kitchen** | ✅ playable | Real-time. 🔥 Cook has the pantry + 2 burners, 🔪 Prep has the chopping board, plate and serve bell. Pass food across a shared counter to fill orders before customers leave. 3 levels (earn ⭐ to unlock the next); food burns if you forget it; the clock pauses if a phone disconnects. |
 | 🌙 **Midnight Snack** | 🚧 later | Plan quiet moves together on a grid without waking the roommate. |
 
 ## Languages & pantries
@@ -37,6 +37,7 @@ The server listens on `$PORT`. Rooms live in memory, so a restart/redeploy clear
 
 ## How it works
 - `server/index.js` — Express static server + Socket.IO rooms (create/join/rejoin, reactions, presence).
+- `server/rush.js` — Split Kitchen rules: roles, items (raw/chopped/cooked/burnt), orders, coins, levels. The server runs one 250 ms game clock for all kitchens.
 - `server/relay.js` — Recipe Relay rules. The server picks a hidden target dish, derives clues that are all true for it, and splits them 3/3. Each player only ever receives their own card until the round ends.
 - `public/` — vanilla HTML/CSS/JS, mobile-first, no build step. `i18n.js` holds all English/Vietnamese text. Sounds are synthesized with Web Audio.
 - Reconnects: each browser keeps a player id in `localStorage`, so refreshing or a dropped phone connection puts you back in your seat.

@@ -229,7 +229,7 @@
     const partner = room.players[1 - room.seat];
     $('#lobby-hint').textContent = !partner ? t('lobby.hintAlone')
       : !partner.connected ? t('lobby.hintAway', { name: partner.name }) : t('lobby.hintReady');
-    document.querySelectorAll('.mode-card[data-mode="relay"]').forEach(b => (b.disabled = !partner));
+    document.querySelectorAll('.mode-card[data-mode="relay"], .mode-card[data-mode="rush"]').forEach(b => (b.disabled = !partner));
     document.querySelectorAll('.pack-btn').forEach(b => b.setAttribute('aria-checked', String(b.dataset.pack === room.pack)));
 
     const s = room.stats;
@@ -241,6 +241,11 @@
         t('lobby.recapTonight') + ' ', el('b', {}, t('lobby.recapDishes', s.rounds)), ' · ', el('b', {}, `${s.stars} ⭐`), el('br'),
         t('lobby.recapBest') + ' ', el('b', {}, `${I18N.dishName(best.dish, best.names)} ${'⭐'.repeat(best.stars) || '(0⭐)'}`),
       );
+    }
+    const best = room.rushBest || {};
+    if (Object.keys(best).length) {
+      if (recap.childNodes.length) recap.append(el('br'));
+      recap.append(t('lobby.rushBest') + ' ', el('b', {}, [1, 2, 3].filter(n => n in best).map(n => `${t('rush.level', { n })} ${'⭐'.repeat(best[n]) || '–'}`).join(' · ')));
     }
   }
 
@@ -380,6 +385,325 @@
     }
   }
 
+  // ───────── Split Kitchen ─────────
+  const SILENT_ERRORS = new Set(['empty', 'not_started']);
+  const rushUI = { key: null, lastEvent: 0, clockBase: 0, recvAt: 0, running: false, raf: 0, burnerState: [], orderIds: '' };
+
+  sfx.chop = () => tone(900 + Math.random() * 200, 0.04, 'square', 0.04);
+  sfx.whoosh = () => { tone(400, 0.08, 'sine', 0.1); tone(700, 0.1, 'sine', 0.08, 0.05); };
+  sfx.done = () => tone(1200, 0.12, 'triangle', 0.1);
+  sfx.warn = () => tone(260, 0.1, 'square', 0.05);
+
+  const rushClock = () => (rushUI.running ? rushUI.clockBase + (performance.now() - rushUI.recvAt) : rushUI.clockBase);
+  const fmtTime = ms => { const sec = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; };
+  const BADGE = { raw: '', chopped: '🔪', cooked: '🔥', chopped_cooked: '🔪🔥', burnt: '💨' };
+
+  function rushItemState(item, cfg, extra = 0) {
+    if (item.burnt) return 'burnt';
+    const cooked = item.cookedMs + extra >= cfg.cookMs;
+    return item.chopped && cooked ? 'chopped_cooked' : cooked ? 'cooked' : item.chopped ? 'chopped' : 'raw';
+  }
+  function itemHTML(pack, ing, st) {
+    const info = I18N.rushIng(pack, ing);
+    return `<span class="itm st-${st}"><span class="e">${info.emoji}</span>${BADGE[st] ? `<span class="b">${BADGE[st]}</span>` : ''}</span>`;
+  }
+  const itemLabel = (pack, ing, st) => `${I18N.rushIng(pack, ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
+
+  function shake(node) { if (!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
+  function rushSend(action, node) {
+    socket.emit('rush:act', action, res => {
+      if (res && res.error) {
+        if (!SILENT_ERRORS.has(res.error)) { toast(errText(res.error), 1500); sfx.err(); }
+        shake(node);
+      }
+    });
+  }
+  const tapBtn = (cls, onTap, ...kids) => {
+    const b = el('button', { class: cls }, ...kids);
+    b.addEventListener('click', () => onTap(b));
+    return b;
+  };
+  function maxUnlocked(room) {
+    let n = 1;
+    while (n < 3 && ((room.rushBest || {})[n] || 0) >= 1) n++;
+    return n;
+  }
+
+  $('#rush-back').addEventListener('click', () => {
+    if (confirm(t('relay.leaveConfirm'))) socket.emit('room:lobby');
+  });
+
+  // Build the DOM for the current phase & role once; later updates only touch contents.
+  function buildRush(g) {
+    const body = $('#rush-body');
+    const room = state.room, me = room.seat, partnerName = playerName(1 - me);
+    body.replaceChildren();
+    rushUI.burnerState = [];
+    rushUI.orderIds = '';
+
+    if (g.phase === 'ready' || g.phase === 'countdown') {
+      const unlocked = maxUnlocked(room);
+      const panel = el('div', { class: 'rush-ready' },
+        el('div', { class: 'level-chips' }, [1, 2, 3].map(n => tapBtn('level-chip' + (n === g.level ? ' on' : ''),
+          () => { if (n <= unlocked) { sfx.tap(); socket.emit('rush:level', { level: n }); } },
+          n <= unlocked ? t('rush.level', { n }) : `🔒 ${n}`))),
+        el('p', { class: 'rush-tip' }, t('rush.tips')[g.level - 1]),
+        el('div', { class: 'role-cards' }, [0, 1].map(seat => {
+          const role = g.roles[seat];
+          const card = el('div', { class: `role-card ${role} p${seat}` });
+          card.innerHTML = chefSVG(seat, 'happy');
+          card.append(
+            el('div', { class: 'role-who' }, seat === me ? t('rush.you') : playerName(seat)),
+            el('div', { class: 'role-name' }, t('rush.' + role)),
+            el('div', { class: 'role-desc' }, t('rush.' + role + 'Desc')),
+            el('div', { class: 'role-ready', id: 'role-ready-' + seat }),
+          );
+          return card;
+        })),
+        tapBtn('btn btn-ghost btn-swap', () => { sfx.tap(); rushSend({ type: 'swap' }); }, t('rush.swap')),
+        tapBtn('btn btn-primary', () => { sfx.tap(); buzz(10); rushSend({ type: 'ready' }); }, ''),
+        el('div', { class: 'countdown', id: 'rush-countdown' }),
+      );
+      panel.querySelector('.btn-primary').id = 'rush-ready-btn';
+      body.append(panel);
+      return;
+    }
+
+    if (g.phase !== 'playing') return;
+    const pantryIds = Object.keys(catalog.rush[g.pack].ingredients);
+    const counter = el('div', { class: 'counter' }, g.counter.map((_, i) => tapBtn('slot counter-slot', b => { sfx.tap(); rushSend({ type: 'counter', i }, b); })));
+    const handRow = el('div', { class: 'hand-row' },
+      el('div', { class: 'hand', id: 'rush-hand' }),
+      tapBtn('trash', b => { sfx.tap(); rushSend({ type: 'trash' }, b); }, '🗑️'));
+
+    if (g.myRole === 'cook') {
+      body.append(el('div', { class: 'kit cook' },
+        el('div', { class: 'kit-label' }, t('rush.pantry')),
+        el('div', { class: 'rush-pantry' }, pantryIds.map(id => tapBtn('slot pantry-item', b => { sfx.tap(); buzz(6); rushSend({ type: 'pantry', ing: id }, b); },
+          el('span', { class: 'e' }, I18N.rushIng(g.pack, id).emoji), el('span', { class: 'n' }, I18N.rushIng(g.pack, id).name[I18N.lang])))),
+        el('div', { class: 'kit-label' }, t('rush.stove')),
+        el('div', { class: 'burners' }, g.burners.map((_, i) => tapBtn('slot burner', b => { sfx.tap(); rushSend({ type: 'burner', i }, b); },
+          el('span', { class: 'ring' }), el('span', { class: 'content' })))),
+        el('div', { class: 'kit-label' }, t('rush.counterTo', { name: partnerName })),
+        counter, handRow));
+    } else {
+      body.append(el('div', { class: 'kit prep' },
+        el('div', { class: 'kit-label' }, t('rush.counterFrom', { name: partnerName })),
+        counter,
+        el('div', { class: 'kit-label' }, t('rush.board')),
+        tapBtn('slot board', b => {
+          const gg = state.game;
+          if (!state.game.hands[me] && gg.board.item && !gg.board.item.chopped) { sfx.chop(); buzz(5); b.classList.remove('chop'); void b.offsetWidth; b.classList.add('chop'); }
+          else sfx.tap();
+          rushSend({ type: 'board' }, b);
+        }, el('span', { class: 'content' }), el('span', { class: 'board-text' }), el('span', { class: 'chopbar' }, el('i'))),
+        el('div', { class: 'kit-label' }, t('rush.plate')),
+        el('div', { class: 'plate-row' },
+          tapBtn('slot plate', b => { sfx.tap(); rushSend({ type: 'plate' }, b); }, el('span', { class: 'content' })),
+          tapBtn('clear-plate', b => { sfx.tap(); rushSend({ type: 'clearPlate' }, b); }, '✖'),
+          tapBtn('btn btn-primary serve', b => { rushSend({ type: 'serve' }, b); }, t('rush.serve'))),
+        handRow));
+    }
+  }
+
+  function updateRush(g) {
+    const room = state.room, me = room.seat;
+    const cfg = g.config;
+    $('#rush-level').textContent = t('rush.level', { n: g.level });
+    $('#rush-coins').textContent = `💰 ${g.coins}`;
+    const playing = g.phase === 'playing';
+    if (!playing) $('#rush-clock').textContent = fmtTime(cfg.durationMs - g.clock);
+    $('#rush-orders').hidden = !playing;
+    $('.rush-timebar').hidden = !playing;
+
+    const pause = $('#rush-pause');
+    pause.hidden = !(playing && !g.running);
+    if (!pause.hidden) pause.textContent = t('rush.paused', { name: playerName(1 - me) });
+
+    if (g.phase === 'ready' || g.phase === 'countdown') {
+      [0, 1].forEach(seat => { const n = $('#role-ready-' + seat); if (n) n.textContent = g.ready[seat] ? '✅' : '…'; });
+      const btn = $('#rush-ready-btn');
+      if (btn) { btn.textContent = g.ready[me] ? t('rush.unready') : t('rush.ready'); btn.classList.toggle('is-ready', g.ready[me]); }
+      const cd = $('#rush-countdown');
+      if (cd) {
+        cd.textContent = g.phase === 'countdown' ? '' : g.ready[1 - me] ? t('rush.partnerReady', { name: playerName(1 - me) }) : g.ready[me] ? t('rush.waitingPartner', { name: playerName(1 - me) }) : '';
+        cd.classList.toggle('big', g.phase === 'countdown');
+      }
+      return;
+    }
+    if (!playing) return;
+
+    // Orders: rebuild when the set of orders changes; timers animate in the rAF loop.
+    const ids = g.orders.map(o => o.id).join(',');
+    if (ids !== rushUI.orderIds) {
+      rushUI.orderIds = ids;
+      $('#rush-orders').replaceChildren(...g.orders.map(o => {
+        const d = I18N.rushDish(g.pack, o.dish);
+        const tk = el('div', { class: 'ticket', 'data-id': o.id });
+        tk.innerHTML = `<div class="tk-head"><span class="tk-e">${d.emoji}</span><span class="tk-n">${d.name[I18N.lang]}</span></div>
+          <div class="tk-comps">${d.comps.map(c => { const [ing, st] = c.split(':'); return itemHTML(g.pack, ing, st); }).join('')}</div>
+          <div class="tk-bar"><i></i></div>`;
+        return tk;
+      }));
+    }
+
+    // Counter
+    document.querySelectorAll('.counter-slot').forEach((b, i) => {
+      const slot = g.counter[i];
+      b.innerHTML = slot ? itemHTML(g.pack, slot.item.ing, rushItemState(slot.item, cfg)) : '';
+      b.classList.toggle('filled', !!slot);
+      b.classList.toggle('from-partner', !!slot && slot.by !== me);
+    });
+
+    // Hand
+    const hand = g.hands[me];
+    const handEl = $('#rush-hand');
+    if (handEl) {
+      if (hand) {
+        const st = rushItemState(hand, cfg);
+        handEl.innerHTML = `${itemHTML(g.pack, hand.ing, st)}<span class="hand-text"><small>${t('rush.holding')}</small>${itemLabel(g.pack, hand.ing, st)}</span>`;
+      } else handEl.innerHTML = `<span class="hand-text muted">${t('rush.handsEmpty')}</span>`;
+      handEl.classList.toggle('full', !!hand);
+    }
+
+    if (g.myRole === 'prep') {
+      const board = $('.board');
+      const bi = g.board.item;
+      board.querySelector('.content').innerHTML = bi ? itemHTML(g.pack, bi.ing, rushItemState(bi, cfg)) : '';
+      board.querySelector('.board-text').textContent = !bi ? t('rush.boardEmpty')
+        : bi.chopped ? t('rush.chopDone') : t('rush.tapChop', { n: g.board.taps, total: cfg.chopTaps });
+      board.querySelector('.chopbar i').style.width = bi ? (bi.chopped ? 100 : (g.board.taps / cfg.chopTaps) * 100) + '%' : '0%';
+      board.classList.toggle('ready-pick', !!(bi && bi.chopped));
+      $('.plate .content').innerHTML = g.plate.length
+        ? g.plate.map(it => itemHTML(g.pack, it.ing, rushItemState(it, cfg))).join('')
+        : `<span class="muted">${t('rush.plateEmpty')}</span>`;
+    }
+    if (g.myRole === 'cook') document.querySelectorAll('.burner').forEach((b, i) => { if (!g.burners[i].item) { b.querySelector('.content').innerHTML = `<span class="muted">${t('rush.burnerEmpty')}</span>`; rushUI.burnerState[i] = null; } });
+  }
+
+  // Per-frame animation: clock, order patience, burner progress.
+  function rushFrame() {
+    rushUI.raf = 0;
+    const g = state && state.game;
+    if (!g || g.mode !== 'rush' || g.phase !== 'playing' || !$('#screen-rush').classList.contains('active')) return;
+    const clock = rushClock(), cfg = g.config;
+    const left = cfg.durationMs - clock;
+    $('#rush-clock').textContent = fmtTime(left);
+    $('#rush-clock').classList.toggle('hurry', left < 20000);
+    $('#rush-timebar').style.width = Math.max(0, (left / cfg.durationMs) * 100) + '%';
+
+    document.querySelectorAll('.ticket').forEach(tk => {
+      const o = g.orders.find(x => String(x.id) === tk.dataset.id);
+      if (!o) return;
+      const p = Math.max(0, (o.expiresAt - clock) / cfg.patienceMs);
+      tk.querySelector('.tk-bar i').style.width = p * 100 + '%';
+      tk.classList.toggle('urgent', p < 0.3);
+    });
+
+    if (g.myRole === 'cook') {
+      document.querySelectorAll('.burner').forEach((b, i) => {
+        const bn = g.burners[i];
+        if (!bn.item) { b.className = 'slot burner'; b.style.removeProperty('--p'); return; }
+        const cooked = bn.item.cookedMs + (clock - bn.since);
+        const st = rushItemState(bn.item, cfg, clock - bn.since);
+        let cls, p;
+        if (st === 'burnt' || cooked >= cfg.cookMs + cfg.burnMs) { cls = 'burnt'; p = 1; }
+        else if (cooked < cfg.cookMs) { cls = 'cooking'; p = cooked / cfg.cookMs; }
+        else { p = (cooked - cfg.cookMs) / cfg.burnMs; cls = p > 0.55 ? 'danger' : 'done'; }
+        b.className = 'slot burner ' + cls;
+        b.style.setProperty('--p', Math.min(1, p));
+        const key = bn.item.id + ':' + (cls === 'burnt' ? 'burnt' : st);
+        const prevKey = rushUI.burnerState[i];
+        if (key !== prevKey) {
+          b.querySelector('.content').innerHTML = itemHTML(g.pack, bn.item.ing, cls === 'burnt' ? 'burnt' : st);
+          if (prevKey && prevKey.split(':')[0] === String(bn.item.id)) {
+            if (cls === 'done') { sfx.done(); buzz(20); }
+          }
+          rushUI.burnerState[i] = key;
+        }
+        if (cls === 'danger' && !b.dataset.warned) { b.dataset.warned = '1'; sfx.warn(); buzz([20, 30, 20]); }
+        if (cls !== 'danger') delete b.dataset.warned;
+      });
+    }
+    rushUI.raf = requestAnimationFrame(rushFrame);
+  }
+
+  // Play effects for events we haven't seen. A new game restarts event ids, so reset then.
+  function rushEvents(g, quiet) {
+    const me = state.room.seat;
+    const maxId = g.events.length ? g.events[g.events.length - 1].id : 0;
+    const newGame = !prev || !prev.game || prev.game.mode !== 'rush' || maxId < rushUI.lastEvent;
+    const evs = newGame ? [] : g.events.filter(e => e.id > rushUI.lastEvent);
+    rushUI.lastEvent = maxId;
+    if (quiet) return;
+    for (const e of evs) {
+      if (e.type === 'served') {
+        const d = I18N.rushDish(g.pack, e.dish);
+        sfx.ding(); buzz([30, 40, 30]); floatEmoji('💰', 4);
+        toast(t('rush.served', { coins: e.coins, dish: d.emoji + ' ' + d.name[I18N.lang] }), 1500);
+      } else if (e.type === 'missed') {
+        const d = I18N.rushDish(g.pack, e.dish);
+        sfx.err(); buzz(80); toast(t('rush.missed', { dish: d.emoji + ' ' + d.name[I18N.lang] }), 1800);
+      } else if (e.type === 'burnt') {
+        floatEmoji('💨', 4); buzz(60);
+        toast(t('rush.burntEv', { ing: I18N.rushIng(g.pack, e.ing).emoji + ' ' + I18N.rushIng(g.pack, e.ing).name[I18N.lang] }), 1500);
+      } else if (e.type === 'passed' && e.by !== me) {
+        sfx.whoosh(); buzz(25);
+      }
+    }
+  }
+
+  function renderRush(quiet) {
+    const g = state.game, room = state.room;
+    rushUI.clockBase = g.clock; rushUI.recvAt = performance.now(); rushUI.running = g.phase === 'playing' && g.running;
+    const group = g.phase === 'countdown' ? 'ready' : g.phase;
+    const key = [group, g.myRole, g.pack, g.level, g.roles.join(), I18N.lang, maxUnlocked(room), playerName(0), playerName(1)].join('|');
+    if (key !== rushUI.key) { rushUI.key = key; buildRush(g); }
+    rushEvents(g, quiet);
+    // Countdown beeps
+    if (g.phase === 'countdown') {
+      const n = Math.ceil(g.countdownLeft / 1000);
+      const cd = $('#rush-countdown');
+      if (cd && cd.dataset.n !== String(n)) { cd.dataset.n = n; cd.textContent = n > 0 ? n : ''; if (n > 0 && !quiet) { tone(660, 0.12, 'triangle', 0.12); buzz(15); } }
+    }
+    if (g.phase === 'playing' && prev && prev.game && prev.game.mode === 'rush' && prev.game.phase === 'countdown' && !quiet) { tone(990, 0.3, 'triangle', 0.15); buzz(60); }
+    updateRush(g);
+    if (!rushUI.raf) rushUI.raf = requestAnimationFrame(rushFrame);
+  }
+
+  // ───────── Split Kitchen results ─────────
+  $('#rr-next').addEventListener('click', () => { sfx.tap(); socket.emit('rush:level', { level: state.game.level + 1 }); });
+  $('#rr-retry').addEventListener('click', () => { sfx.tap(); socket.emit('rush:level', { level: state.game.level }); });
+  $('#rr-lobby').addEventListener('click', () => { sfx.tap(); socket.emit('room:lobby'); });
+
+  function renderRushResults(quiet) {
+    const g = state.game, r = g.result, room = state.room;
+    rushUI.key = null;
+    $('#rr-level').textContent = `🔥 ${t('rush.level', { n: r.level })}`;
+    $('#rr-stars').replaceChildren(...[0, 1, 2].map(i => el('span', { class: i < r.stars ? '' : 'off' }, '⭐')));
+    $('#rr-coins').textContent = t('rush.coins', { coins: r.coins });
+    $('#rr-goal').textContent = t('rush.goal', { a: r.thresholds[0], b: r.thresholds[1], c: r.thresholds[2] });
+    const st = r.stats;
+    const lines = [t('rush.servedN', { n: st.served }), t('rush.missedN', { n: st.missed })];
+    const burnSeat = st.burnt[0] >= st.burnt[1] ? 0 : 1;
+    if (st.burnt[burnSeat] > 0) lines.push(t('rush.funnyBurn', playerName(burnSeat), st.burnt[burnSeat]));
+    else lines.push(t('rush.funnyPerfect'));
+    if (st.passed[0] !== st.passed[1]) lines.push(t('rush.funnyPass', { name: playerName(st.passed[0] > st.passed[1] ? 0 : 1) }));
+    const unlocked = r.unlocked || maxUnlocked(room);
+    if (r.level >= 3 && r.stars > 0) lines.push(t('rush.allDone'));
+    else if (unlocked <= r.level && r.level < 3) lines.push(t('rush.needStar'));
+    $('#rr-stats').replaceChildren(...lines.map(l => el('div', {}, l)));
+    const next = $('#rr-next');
+    next.hidden = !(r.level < 3 && unlocked > r.level);
+    next.textContent = t('rush.next', { n: r.level + 1 });
+
+    const justFinished = !(prev && prev.game && prev.game.mode === 'rush' && prev.game.phase === 'results');
+    if (justFinished && !quiet) {
+      sfx.ding(); buzz([40, 60, 40]);
+      if (r.stars >= 2) setTimeout(() => floatEmoji(r.stars === 3 ? '💖' : '✨', 8), 600);
+    }
+  }
+
   // ───────── Main render ─────────
   function render(quiet = false) {
     if (!state) return show('home');
@@ -393,6 +717,11 @@
 
     if (!game) { show('lobby'); renderLobby(); return; }
     if (!catalog) return;  // wait for ingredient data
+    if (game.mode === 'rush') {
+      if (game.phase === 'results') { show('rush-results', 'rush'); renderRushResults(quiet); }
+      else { show('rush', 'rush'); renderRush(quiet); }
+      return;
+    }
     if (game.mode === 'relay') {
       if (game.phase === 'results') { show('results', 'relay'); renderResults(quiet); }
       else {

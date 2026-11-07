@@ -80,10 +80,10 @@
             <div class="mode-desc" data-i18n="mode.relay.desc"></div>
           </div>
         </button>
-        <button class="mode-card mode-rush" data-mode="rush" disabled>
+        <button class="mode-card mode-rush" data-mode="rush">
           <div class="mode-emoji">🔥</div>
           <div class="mode-text">
-            <div class="mode-name"><span data-i18n="mode.rush.name">Split Kitchen</span> <span class="soon" data-i18n="soon">soon</span></div>
+            <div class="mode-name"><span data-i18n="mode.rush.name">Split Kitchen</span></div>
             <div class="mode-desc" data-i18n="mode.rush.desc"></div>
           </div>
         </button>
@@ -136,6 +136,45 @@
       </div>
 
       <div class="reactions" id="reactions"></div>
+    </section>
+
+    <!-- SPLIT KITCHEN -->
+    <section id="screen-rush" class="screen">
+      <header class="topbar">
+        <button class="icon-btn" id="rush-back" aria-label="Back to lobby">←</button>
+        <div class="rush-status">
+          <span id="rush-level"></span>
+          <span class="rush-clock" id="rush-clock">0:00</span>
+        </div>
+        <div class="topbar-right">
+          <span class="rush-coins" id="rush-coins">💰 0</span>
+          <button class="icon-btn mute-btn" aria-label="Toggle sound">🔊</button>
+        </div>
+      </header>
+      <div class="rush-timebar"><i id="rush-timebar"></i></div>
+      <div class="rush-orders" id="rush-orders"></div>
+      <div class="rush-body" id="rush-body"></div>
+      <div class="rush-pause" id="rush-pause" hidden></div>
+    </section>
+
+    <section id="screen-rush-results" class="screen">
+      <header class="topbar">
+        <div class="icon-btn-spacer"></div>
+        <div class="topbar-title" data-i18n="rush.resultsTitle">Kitchen closed!</div>
+        <div class="icon-btn-spacer"></div>
+      </header>
+      <div class="results-hero">
+        <div class="results-bowl" id="rr-level"></div>
+        <div class="results-stars" id="rr-stars"></div>
+        <h2 class="results-name" id="rr-coins"></h2>
+        <p class="results-score" id="rr-goal"></p>
+      </div>
+      <div class="rr-stats" id="rr-stats"></div>
+      <div class="results-buttons">
+        <button class="btn btn-primary" id="rr-next"></button>
+        <button class="btn btn-secondary" id="rr-retry" data-i18n="rush.retry">🔁 Play again</button>
+        <button class="btn btn-ghost" id="rr-lobby" data-i18n="results.lobby">Back to kitchen</button>
+      </div>
     </section>
 
     <!-- RESULTS -->

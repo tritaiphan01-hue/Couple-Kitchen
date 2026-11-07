@@ -31,7 +31,7 @@ test('two players can create, join, play and reconnect', async t => {
   assert.strictEqual((await emit(c, 'room:join', { code: created.code, playerId: 'pc' })).error, 'room_full');
   c.close();
 
-  assert.ok((await emit(a, 'mode:start', { mode: 'rush' })).error);
+  assert.strictEqual((await emit(a, 'mode:start', { mode: 'sneak' })).error, 'mode_soon');
 
   // Switch to the Vietnamese pantry; both players see it.
   const packed = nextState(b, s => s.room.pack === 'vietnam');
@@ -65,4 +65,37 @@ test('two players can create, join, play and reconnect', async t => {
   t.after(() => b2.close());
   const re = await emit(b2, 'room:rejoin', { code: created.code, playerId: 'pb' });
   assert.strictEqual(re.seat, 1);
+});
+
+test('Split Kitchen runs in real time over sockets', async t => {
+  await new Promise(r => server.listen(0, r));
+  const url = `http://localhost:${server.address().port}`;
+  const a = connect(url, { transports: ['websocket'] });
+  const b = connect(url, { transports: ['websocket'] });
+  t.after(() => { a.close(); b.close(); server.close(); });
+
+  const { code } = await emit(a, 'room:create', { name: 'Tri', playerId: 'ra' });
+  await emit(b, 'room:join', { code, name: 'Mai', playerId: 'rb' });
+  const ready = nextState(b, s => s.game && s.game.mode === 'rush');
+  assert.ok((await emit(a, 'mode:start', { mode: 'rush' })).ok);
+  const s0 = await ready;
+  assert.strictEqual(s0.game.phase, 'ready');
+  assert.strictEqual(s0.game.myRole, 'prep');
+
+  const playing = nextState(a, s => s.game.phase === 'playing' && s.game.orders.length === 1);
+  await emit(a, 'rush:act', { type: 'ready' });
+  await emit(b, 'rush:act', { type: 'ready' });
+  const s1 = await playing;                         // after the 3-second countdown
+  assert.ok(s1.game.running);
+
+  // Cook grabs bread and passes it; Prep sees it on the counter.
+  assert.ok((await emit(a, 'rush:act', { type: 'pantry', ing: 'bread' })).ok);
+  const passed = nextState(b, s => s.game.counter[0]);
+  assert.ok((await emit(a, 'rush:act', { type: 'counter', i: 0 })).ok);
+  assert.strictEqual((await passed).game.counter[0].item.ing, 'bread');
+  assert.strictEqual((await emit(b, 'rush:act', { type: 'pantry', ing: 'egg' })).error, 'wrong_role');
+
+  // Clock keeps ticking on its own.
+  const later = await nextState(a, s => s.game.clock > s1.game.clock + 400);
+  assert.ok(later.game.clock > s1.game.clock);
 });
