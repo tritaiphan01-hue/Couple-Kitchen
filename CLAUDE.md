@@ -53,7 +53,7 @@ There is no linter or bundler. To check client syntax quickly, run `node -e "new
 
 **Client (`public/`)**, loaded in this order: `i18n.js` → `music.js` → `icons.js` → `app.js` (one IIFE):
 - **Screens:** `show(screen, mode)` switches `.screen` sections and sets `body[data-mode]`, which drives the CSS theme and the music mood.
-- **Prediction:** `renderRush` predicts taps locally (`predictRush`) before the server confirms.
+- **Prediction:** Split Kitchen taps are applied locally by `applyRush` (a mirror of `rush.act`, keep them in sync) and queued in `rushPending` until the server's ack. Every incoming state is cloned and the pending taps are replayed on it (`rushReconcile`), so a tick that was already in flight can't undo a prediction.
 - **Fast DOM updates:** `setHTML`/`setText` only touch the DOM when the content changed, and kitchen buttons use `pointerdown` (via the `FAST` regex in `tapBtn`).
 - **Performance:** avoid CSS `filter`/`drop-shadow` on many elements; it was a measured cause of jank on phones.
 - **Text:** all user-facing text goes in `public/i18n.js` with both `en` and `vi` blocks. Values can be functions (plurals, word order). `test/i18n.test.js` fails if the two blocks have different keys, and it renders every clue and dish name in both languages.
