@@ -192,6 +192,7 @@
   let lastRoomCode = null;
   socket.on('state', s => {
     prev = state; state = s;
+    if (s.game && s.game.mode === 'rush') { rushServerGame = s.game; rushReconcile(); }
     if (s.room.code !== lastRoomCode) { lastRoomCode = s.room.code; store.set('room', s.room.code); }
     saveProgress(s.room);
     render();
@@ -574,11 +575,10 @@
   const itemLabel = (ing, st) => `${I18N.rushIng(ing).name[I18N.lang]} (${t('rush.st.' + st)})`;
 
   function shake(node) { if (!node) return; node.classList.remove('shake'); void node.offsetWidth; node.classList.add('shake'); }
-  // Show the likely result immediately; the server's next update (a few ms later) confirms or corrects it.
-  function predictRush(g, me, a) {
-    if (!g || g.phase !== 'playing' || !g.running) return;
-    const hand = g.hands[me], role = g.myRole;
-    const cfg = g.config;
+  // Client-side prediction. Mirrors server/rush.js `act` for this player's own taps so the
+  // kitchen reacts instantly. Pure: only mutates `g`, no DOM or sound.
+  function applyRush(g, me, a) {
+    const hand = g.hands[me], role = g.myRole, cfg = g.config;
     if (a.type === 'pantry' && role === 'cook' && !hand) g.hands[me] = { id: -1, ing: a.ing, chopped: false, cookedMs: 0, burnt: false };
     else if (a.type === 'trash' && hand) g.hands[me] = null;
     else if (a.type === 'counter') {
@@ -587,26 +587,57 @@
       else if (!hand && slot) { g.hands[me] = slot.item; g.counter[a.i] = null; }
     } else if (a.type === 'burner' && role === 'cook') {
       const b = g.burners[a.i];
-      if (hand && !b.item && !hand.burnt) { b.item = hand; b.since = rushClock(); g.hands[me] = null; }
-      else if (!hand && b.item) { g.hands[me] = { ...b.item, cookedMs: b.item.cookedMs + (rushClock() - b.since) }; b.item = null; }
+      if (!b) return;
+      if (hand && !b.item && !hand.burnt) { b.item = hand; b.since = a.at; g.hands[me] = null; }
+      else if (!hand && b.item) { g.hands[me] = { ...b.item, cookedMs: b.item.cookedMs + Math.max(0, a.at - b.since) }; b.item = null; }
     } else if (a.type === 'plate' && role === 'prep') {
       if (hand && !hand.burnt && g.plate.length < 4) { g.plate.push(hand); g.hands[me] = null; }
       else if (!hand && g.plate.length) g.hands[me] = g.plate.pop();
     } else if (a.type === 'board' && role === 'prep') {
       const bd = g.board;
       if (hand && !bd.item && !hand.chopped && hand.cookedMs < cfg.cookMs && !hand.burnt) { bd.item = hand; bd.taps = 0; g.hands[me] = null; }
-      else if (!hand && bd.item && bd.item.chopped) { g.hands[me] = bd.item; bd.item = null; bd.taps = 0; }
-      else return;   // chopping is shown by the board's own tap handler
-    } else return;
-    updateRush(g);
+      else if (!hand && bd.item && !bd.item.chopped) { bd.taps++; if (bd.taps >= cfg.chopTaps) bd.item = { ...bd.item, chopped: true }; }
+      else if (!hand && bd.item) { g.hands[me] = bd.item; bd.item = null; bd.taps = 0; }
+    } else if (a.type === 'clearPlate' && role === 'prep') g.plate = [];
   }
 
+  // Taps the server hasn't answered yet. Every state update is the server's view *before*
+  // these taps arrived, so we replay them on top — otherwise an in-flight tick overwrites the
+  // prediction and the item flickers back for a moment (very visible on mobile data).
+  const rushPending = [];
+  let rushSeq = 0, rushServerGame = null;
+  const rushLive = g => g && g.mode === 'rush' && g.phase === 'playing' && g.running;
+  function rushReconcile() {
+    const g = rushServerGame && structuredClone(rushServerGame);
+    if (!g) return;
+    if (!rushLive(g)) rushPending.length = 0;
+    const me = state.room.seat;
+    for (const a of rushPending) applyRush(g, me, a);
+    state.game = g;
+  }
+  socket.on('disconnect', () => { rushPending.length = 0; });
+
   function rushSend(action, node) {
-    if (state && state.game && state.game.mode === 'rush') predictRush(state.game, state.room.seat, action);
+    const g = state && state.game;
+    const live = rushLive(g);
+    const a = { ...action, at: live ? rushClock() : 0 };
+    if (live) {
+      const seq = ++rushSeq;
+      rushPending.push({ ...a, seq });
+      applyRush(g, state.room.seat, a);
+      updateRush(g);
+      a.seq = seq;
+    }
     socket.emit('rush:act', action, res => {
+      // The server answers right before it broadcasts the resulting state, so from here on
+      // its updates already include this tap.
+      const idx = rushPending.findIndex(p => p.seq === a.seq);
+      if (idx >= 0) rushPending.splice(idx, 1);
       if (res && res.error) {
         if (!SILENT_ERRORS.has(res.error)) { toast(errText(res.error), 1500); sfx.err(); }
         shake(node);
+        // The tap was refused: undo its prediction now instead of waiting for the next tick.
+        if (live && state && state.game && state.game.mode === 'rush') { rushReconcile(); updateRush(state.game); }
       }
     });
   }
@@ -692,13 +723,11 @@
         el('div', { class: 'kit-label' }, t('rush.board')),
         tapBtn('slot board', b => {
           const gg = state.game;
-          if (!state.game.hands[me] && gg.board.item && !gg.board.item.chopped) {
-            sfx.chop(); buzz(5); b.classList.remove('chop'); void b.offsetWidth; b.classList.add('chop');
-            // Show the chop right away instead of waiting for the server (feels snappier on slow mobile data).
-            const taps = Math.min(gg.config.chopTaps, gg.board.taps + 1);
-            gg.board.taps = taps;
-            b.querySelector('.chopbar i').style.width = (taps / gg.config.chopTaps) * 100 + '%';
-            b.querySelector('.board-text').textContent = taps >= gg.config.chopTaps ? t('rush.chopDone') : t('rush.tapChop', { n: taps, total: gg.config.chopTaps });
+          if (!gg.hands[me] && gg.board.item && !gg.board.item.chopped) {
+            sfx.chop(); buzz(5);
+            // Web Animations restarts the wobble without forcing a layout inside the tap handler.
+            const c = b.querySelector('.content');
+            if (c.animate) c.animate([{ transform: 'none' }, { transform: 'scale(.85) rotate(-8deg)' }, { transform: 'none' }], { duration: 150, easing: 'ease' });
           }
           else sfx.tap();
           rushSend({ type: 'board' }, b);
